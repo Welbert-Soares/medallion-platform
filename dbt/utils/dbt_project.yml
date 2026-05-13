@@ -3,11 +3,11 @@ version: '1.0.0'
 
 profile: *project_name
 
-macro-paths: ["macros"]
+macro-paths: ['macros']
 
 clean-targets:
-  - "target"
-  - "dbt_packages"
+  - 'target'
+  - 'dbt_packages'
 
 flags:
   use_materialization_v2: true
