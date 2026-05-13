@@ -12,7 +12,7 @@ TIMEOUT_SEC = 3600
 
 active = spark.sql("""
     SELECT ingestion_name
-    FROM cli_catalog.controller.ingestions
+    FROM medallion_controller.delta_controller.ingestions
     WHERE table_active = true
     ORDER BY ingestion_name
 """).collect()

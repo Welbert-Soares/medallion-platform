@@ -6,7 +6,7 @@
 }}
 
 WITH source AS (
-    SELECT * FROM {{ source('bronze', 'ibge_municipios_raw') }}
+    SELECT * FROM {{ source('raw_ibge', 'municipios') }}
 ),
 
 renamed AS (

@@ -44,8 +44,8 @@ profiles_yml = f"""medallion:
       host: {host}
       http_path: {http_path}
       token: {token}
-      catalog: cli_catalog
-      schema: silver
+      catalog: medallion_silver
+      schema: weather
       threads: 4
 """
 with open(f"{PROFILES_DIR}/profiles.yml", "w") as f:

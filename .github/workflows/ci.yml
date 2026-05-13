@@ -38,7 +38,7 @@ jobs:
           python3 -c "
           import pathlib
           p = pathlib.Path.home() / '.dbt' / 'profiles.yml'
-          p.write_text('medallion:\n  target: ci\n  outputs:\n    ci:\n      type: databricks\n      host: placeholder\n      http_path: placeholder\n      token: placeholder\n      catalog: cli_catalog\n      schema: silver\n      threads: 1\n')
+          p.write_text('medallion:\n  target: ci\n  outputs:\n    ci:\n      type: databricks\n      host: placeholder\n      http_path: placeholder\n      token: placeholder\n      catalog: medallion_silver\n      schema: weather\n      threads: 1\n')
           "
 
       - name: dbt compile (syntax check only)

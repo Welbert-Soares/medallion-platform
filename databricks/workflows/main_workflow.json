@@ -3,7 +3,7 @@
   "tasks": [
     {
       "task_key": "sync_config",
-      "description": "Sincroniza YAMLs do Repo com cli_catalog.controller.ingestions",
+      "description": "Sincroniza YAMLs do Repo com medallion_controller.delta_controller.ingestions",
       "notebook_task": {
         "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/setup/sync_config",
         "base_parameters": {}
@@ -12,8 +12,8 @@
       "timeout_seconds": 600
     },
     {
-      "task_key": "ingest_bronze",
-      "description": "Ingestão paralela de todas as fontes ativas para o Bronze",
+      "task_key": "ingest_raw",
+      "description": "Ingestão paralela de todas as fontes ativas para o Raw",
       "depends_on": [{"task_key": "sync_config"}],
       "notebook_task": {
         "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/ingestion/controller",
@@ -25,8 +25,8 @@
     },
     {
       "task_key": "dbt_silver",
-      "description": "dbt modelos incrementais — Bronze → Silver",
-      "depends_on": [{"task_key": "ingest_bronze"}],
+      "description": "dbt modelos incrementais — Raw → Silver",
+      "depends_on": [{"task_key": "ingest_raw"}],
       "notebook_task": {
         "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/dbt/run_silver",
         "base_parameters": {

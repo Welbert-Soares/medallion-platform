@@ -1,6 +1,6 @@
 # Databricks notebook source
 # Motor de ingestão genérico. Recebe `ingestion_name` como parâmetro de job.
-# A configuração é lida de cli_catalog.controller.ingestions (populada pelo sync_config.py).
+# A configuração é lida de medallion_controller.delta_controller.ingestions (populada pelo sync_config.py).
 
 # COMMAND ----------
 
@@ -49,7 +49,7 @@ LOG_SCHEMA = StructType([
 # 1. Carregar configuração da controller
 
 config_row = spark.sql("""
-    SELECT * FROM cli_catalog.controller.ingestions
+    SELECT * FROM medallion_controller.delta_controller.ingestions
     WHERE ingestion_name = :name AND table_active = true
 """, args={"name": ingestion_name}).first()
 
@@ -57,7 +57,7 @@ if not config_row:
     raise ValueError(f"Ingestão '{ingestion_name}' não encontrada ou inativa.")
 
 source_type   = config_row["source_type"]
-target_table  = f"cli_catalog.{config_row['target_container']}.{config_row['table_name_target']}"
+target_table  = f"{config_row['target_container']}.{config_row['target_schema']}.{config_row['table_name_target']}"
 load_mode     = config_row["table_type_load"]
 merge_key     = config_row["table_merge_columns"]
 flag_distinct = bool(config_row["table_params_flag_distinct"])
@@ -178,7 +178,7 @@ try:
             new_wm = df.agg(F.max(wm_col)).first()[0]
             if new_wm is not None:
                 spark.sql(
-                    f"UPDATE cli_catalog.controller.ingestions "
+                    f"UPDATE medallion_controller.delta_controller.ingestions "
                     f"SET {wm_col_name} = :wm, sync_at = current_timestamp() "
                     f"WHERE ingestion_name = :name",
                     args={"wm": str(new_wm), "name": ingestion_name},
@@ -195,7 +195,7 @@ try:
         "rows_read":      rows_read,
         "rows_written":   rows_read,
         "error_message":  None,
-    }], schema=LOG_SCHEMA).write.format("delta").mode("append").saveAsTable("cli_catalog.controller.execution_log")
+    }], schema=LOG_SCHEMA).write.format("delta").mode("append").saveAsTable("medallion_controller.delta_controller.execution_log")
     print(f"[{ingestion_name}] SUCESSO — {rows_read} linhas → {target_table}")
 
 except Exception as e:
@@ -209,5 +209,5 @@ except Exception as e:
         "rows_read":      rows_read,
         "rows_written":   0,
         "error_message":  str(e)[:2000],
-    }], schema=LOG_SCHEMA).write.format("delta").mode("append").saveAsTable("cli_catalog.controller.execution_log")
+    }], schema=LOG_SCHEMA).write.format("delta").mode("append").saveAsTable("medallion_controller.delta_controller.execution_log")
     raise

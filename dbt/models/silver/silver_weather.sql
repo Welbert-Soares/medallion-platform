@@ -6,7 +6,7 @@
 }}
 
 WITH source AS (
-    SELECT * FROM {{ source('bronze', 'weather_raw') }}
+    SELECT * FROM {{ source('raw_weather', 'sao_paulo') }}
     {% if is_incremental() %}
     WHERE _ingested_at > (SELECT MAX(_ingested_at) FROM {{ this }})
     {% endif %}

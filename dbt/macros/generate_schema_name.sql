@@ -1,5 +1,5 @@
--- Overrides dbt default so silver/gold models land in cli_catalog.silver / cli_catalog.gold
--- instead of cli_catalog.silver_silver (the default prefix behavior).
+-- Overrides dbt default so models land in the exact schema defined in dbt_project.yml
+-- instead of appending the target.schema prefix (e.g. silver_weather instead of weather_weather).
 {% macro generate_schema_name(custom_schema_name, node) -%}
     {%- if custom_schema_name is none -%}
         {{ target.schema }}

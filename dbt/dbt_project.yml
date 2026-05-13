@@ -14,9 +14,15 @@ models:
     silver:
       +materialized: incremental
       +incremental_strategy: merge
-      +schema: silver
+      +catalog: medallion_silver
       +tags: ["silver"]
+      silver_weather:
+        +schema: weather
+      silver_ibge:
+        +schema: ibge
     gold:
       +materialized: table
-      +schema: gold
+      +catalog: medallion_gold
       +tags: ["gold"]
+      gold_kpi_daily:
+        +schema: weather

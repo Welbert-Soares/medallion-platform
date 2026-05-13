@@ -133,7 +133,7 @@ display(df_new.select(
 # COMMAND ----------
 
 # Upsert (MERGE) em controller.ingestions — chave: ingestion_name
-delta_tbl = DeltaTable.forName(spark, "cli_catalog.controller.ingestions")
+delta_tbl = DeltaTable.forName(spark, "medallion_controller.delta_controller.ingestions")
 
 (delta_tbl.alias("t")
     .merge(df_new.alias("s"), "t.ingestion_name = s.ingestion_name")
@@ -141,9 +141,9 @@ delta_tbl = DeltaTable.forName(spark, "cli_catalog.controller.ingestions")
     .whenNotMatchedInsertAll()
     .execute())
 
-print(f"Sync concluído: {len(lst_ingestions)} ingestão(ões) upsertadas em cli_catalog.controller.ingestions")
+print(f"Sync concluído: {len(lst_ingestions)} ingestão(ões) upsertadas em medallion_controller.delta_controller.ingestions")
 display(spark.sql("""
     SELECT ingestion_name, source_name, source_type, table_name_target, table_active, sync_at
-    FROM cli_catalog.controller.ingestions
+    FROM medallion_controller.delta_controller.ingestions
     ORDER BY source_name, ingestion_name
 """))

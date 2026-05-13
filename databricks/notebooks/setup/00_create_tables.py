@@ -1,20 +1,30 @@
 # Databricks notebook source
 # Setup inicial — cria schemas e tabelas de controle.
+# Pré-requisito: catálogos controller, raw, bronze, silver, gold já criados manualmente.
 # Idempotente: seguro para re-executar.
-# Após rodar este notebook, execute sync_config.py para popular controller.ingestions.
+# Após rodar este notebook, execute sync_config.py para popular medallion_controller.delta_controller.ingestions.
 
 # COMMAND ----------
 
-spark.sql("CREATE SCHEMA IF NOT EXISTS cli_catalog.controller COMMENT 'Control tables for the metadata-driven ingestion pipeline'")
-spark.sql("CREATE SCHEMA IF NOT EXISTS cli_catalog.bronze    COMMENT 'Raw ingested data — no business transformations applied'")
-spark.sql("CREATE SCHEMA IF NOT EXISTS cli_catalog.silver    COMMENT 'Cleaned and typed data managed by dbt Core'")
-spark.sql("CREATE SCHEMA IF NOT EXISTS cli_catalog.gold      COMMENT 'Aggregated KPIs and analytics-ready models managed by dbt Core'")
+# Schemas de controle e landing
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_controller.delta_controller COMMENT 'Control tables for the metadata-driven ingestion pipeline'")
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_raw.weather                 COMMENT 'Landing zone — weather data as-is from sources'")
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_raw.ibge                    COMMENT 'Landing zone — IBGE data as-is from sources'")
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_raw.orders                  COMMENT 'Landing zone — orders data as-is from sources'")
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_raw.sources                 COMMENT 'Static source files (CSV, JSON) for ingestion'")
+
+# Schemas do medallion (bronze, silver, gold) — criados conforme sistemas onboardados
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_bronze.weather COMMENT 'Bronze — standardized weather data'")
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_bronze.ibge    COMMENT 'Bronze — standardized IBGE data'")
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_silver.weather COMMENT 'Silver — cleaned and typed weather data'")
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_silver.ibge    COMMENT 'Silver — cleaned and typed IBGE data'")
+spark.sql("CREATE SCHEMA IF NOT EXISTS medallion_gold.weather   COMMENT 'Gold — weather KPIs and aggregations'")
 print("Schemas ready.")
 
 # COMMAND ----------
 
 spark.sql("""
-CREATE TABLE IF NOT EXISTS cli_catalog.controller.ingestions (
+CREATE TABLE IF NOT EXISTS medallion_controller.delta_controller.ingestions (
   -- Identity
   ingestion_name        STRING  NOT NULL,
   source_name           STRING  NOT NULL,
@@ -61,7 +71,7 @@ COMMENT 'Central catalog of ingestion pipeline configurations. Source of truth: 
 """)
 
 spark.sql("""
-CREATE TABLE IF NOT EXISTS cli_catalog.controller.execution_log (
+CREATE TABLE IF NOT EXISTS medallion_controller.delta_controller.execution_log (
   log_id         STRING,
   ingestion_name STRING    NOT NULL,
   execution_id   STRING,
@@ -81,8 +91,8 @@ print("Tables ready.")
 # COMMAND ----------
 
 spark.sql("""
-  CREATE VOLUME IF NOT EXISTS cli_catalog.bronze.sources
+  CREATE VOLUME IF NOT EXISTS medallion_raw.sources.files
   COMMENT 'Static source files (CSV, JSON) for ingestion'
 """)
-print("Volume cli_catalog.bronze.sources ready.")
+print("Volume medallion_raw.sources.files ready.")
 print("Next step: upload source files then run sync_config.py.")
