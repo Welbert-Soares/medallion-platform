@@ -24,6 +24,9 @@ from pyspark.sql.types import (
 REPO_ROOT = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform"
 sys.path.insert(0, REPO_ROOT)
 from config.utils.delta_utils import normalize_column_names, write_to_delta
+from config.utils.connection_functions import get_jdbc_reader
+
+CONNECTIONS_PATH = f"{REPO_ROOT}/config/controller/connections.yml"
 
 LOG_SCHEMA = StructType([
     StructField("log_id",         StringType(),    True),
@@ -114,15 +117,11 @@ def read_csv(path, delimiter, header):
 
 
 def read_sql(query, sql_filter, conn_id, wm_col, last_wm):
-    # Substituição do placeholder de watermark
     if wm_col and last_wm and "?" in query:
         query = query.replace("?", f"'{last_wm}'")
     if sql_filter:
         query = f"{query} {sql_filter}"
-    # Conexão via tabela controller.connections — disponível na Fase 3
-    raise NotImplementedError(
-        f"Fonte SQL requer configuração de connections (Fase 3). conn_id={conn_id}"
-    )
+    return get_jdbc_reader(spark, dbutils, conn_id, query, CONNECTIONS_PATH)
 
 # COMMAND ----------
 # 3. Ler dados, escrever no Bronze, registrar log

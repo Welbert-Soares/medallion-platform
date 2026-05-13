@@ -1,0 +1,36 @@
+connections:
+  type: list
+  schema:
+    type: dict
+    schema:
+      id:
+        type: string
+        required: true
+      description:
+        type: string
+        required: false
+      subprotocol:
+        type: string
+        required: true
+        allowed: [postgresql, mysql, sqlserver, oracle]
+      driver:
+        type: string
+        required: true
+      host:
+        type: string
+        required: true
+      port:
+        type: integer
+        required: true
+      database:
+        type: string
+        required: true
+      user:
+        type: string
+        required: true
+      secret_scope:
+        type: string
+        required: true
+      secret_key:
+        type: string
+        required: true
