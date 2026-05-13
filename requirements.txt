@@ -2,4 +2,4 @@ Cerberus==1.3.7
 pyyaml==6.0.3
 dbt-databricks
 ruff
-databricks-cli
+databricks-sdk

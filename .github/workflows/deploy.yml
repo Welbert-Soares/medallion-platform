@@ -8,6 +8,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    env:
+      DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -16,51 +20,75 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Databricks CLI
-        run: pip install databricks-cli
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
 
-      - name: Configure Databricks CLI
-        run: |
-          databricks configure --token << 'EOF'
-          ${{ secrets.DATABRICKS_HOST }}
-          ${{ secrets.DATABRICKS_TOKEN }}
-          EOF
+      - name: Install dependencies
+        run: pip install databricks-sdk
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
 
       - name: Update Databricks Repo (pull latest main)
         run: |
-          databricks repos update \
-            --repo-id ${{ secrets.DATABRICKS_REPO_ID }} \
-            --branch main
+          databricks repos update ${{ secrets.DATABRICKS_REPO_ID }} --branch main
 
       - name: Upload CSV sources to Unity Catalog Volume
         run: |
-          databricks fs cp data/sources/ibge_municipios.csv \
-            /Volumes/cli_catalog/bronze/sources/ibge_municipios.csv --overwrite
+          python3 - << 'EOF'
+          from databricks.sdk import WorkspaceClient
+          import os
+
+          w = WorkspaceClient()
+          with open("data/sources/ibge_municipios.csv", "rb") as f:
+              w.files.upload(
+                  "/Volumes/cli_catalog/bronze/sources/ibge_municipios.csv",
+                  f,
+                  overwrite=True,
+              )
+          print("CSV uploaded to /Volumes/cli_catalog/bronze/sources/")
+          EOF
 
       - name: Upsert job definition
         run: |
-          sed "s/WAREHOUSE_HTTP_PATH_PLACEHOLDER/${{ secrets.DATABRICKS_HTTP_PATH }}/g" \
-            databricks/workflows/main_workflow.json > /tmp/job.json
+          python3 - << 'EOF'
+          import json, os, re
+          from databricks.sdk import WorkspaceClient
+          from databricks.sdk.service.jobs import JobSettings
 
-          JOB_ID=$(databricks jobs list --output JSON \
-            | python3 -c "
-import sys, json
-jobs = json.load(sys.stdin).get('jobs', [])
-match = [j['job_id'] for j in jobs if j['settings']['name'] == 'medallion-platform-controller']
-print(match[0] if match else '')
-")
+          w = WorkspaceClient()
 
-          if [ -n "$JOB_ID" ]; then
-            databricks jobs reset --job-id "$JOB_ID" --json-file /tmp/job.json
-            echo "DATABRICKS_JOB_ID=$JOB_ID" >> $GITHUB_ENV
-          else
-            NEW_ID=$(databricks jobs create --json-file /tmp/job.json \
-              | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
-            echo "DATABRICKS_JOB_ID=$NEW_ID" >> $GITHUB_ENV
-            echo "Job criado: $NEW_ID"
-          fi
+          with open("databricks/workflows/main_workflow.json") as f:
+              raw = f.read().replace(
+                  "WAREHOUSE_HTTP_PATH_PLACEHOLDER",
+                  os.environ["DATABRICKS_HTTP_PATH"],
+              )
+          settings = JobSettings.from_dict(json.loads(raw))
+
+          existing = next(
+              (j for j in w.jobs.list() if j.settings.name == settings.name),
+              None,
+          )
+
+          if existing:
+              w.jobs.reset(job_id=existing.job_id, new_settings=settings)
+              job_id = existing.job_id
+              print(f"Job atualizado: {job_id}")
+          else:
+              job_id = w.jobs.create(**settings.as_dict()).job_id
+              print(f"Job criado: {job_id}")
+
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              f.write(f"DATABRICKS_JOB_ID={job_id}\n")
+          EOF
+        env:
+          DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
 
       - name: Trigger pipeline run
         run: |
-          databricks jobs run-now --job-id "$DATABRICKS_JOB_ID"
+          databricks jobs run-now $DATABRICKS_JOB_ID
           echo "Pipeline acionado → ${{ secrets.DATABRICKS_HOST }}/#job/$DATABRICKS_JOB_ID"

@@ -16,11 +16,21 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install dbt-databricks ruff
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
 
-      - name: Lint Python notebooks
-        run: ruff check databricks/notebooks/
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint Python (notebooks + utils)
+        run: ruff check databricks/notebooks/ config/utils/ scripts/
+
+      - name: Validate config YAMLs
+        run: python scripts/validate_configs.py
 
       - name: Configure dbt profile
         run: |
@@ -42,3 +52,6 @@ jobs:
       - name: dbt compile
         working-directory: dbt
         run: dbt compile
+        # Requer DATABRICKS_HOST, DATABRICKS_HTTP_PATH e DATABRICKS_TOKEN
+        # configurados como Secrets no repositório GitHub.
+        continue-on-error: ${{ secrets.DATABRICKS_HOST == '' }}
