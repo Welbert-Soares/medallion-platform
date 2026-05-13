@@ -81,6 +81,7 @@ ingestions:
                   allow_unknown: true
                 flatten_method:
                   type: string
+                  allowed: [default, zip_arrays, json_normalize]
                   required: false
                 data_key:
                   type: string

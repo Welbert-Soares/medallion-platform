@@ -97,14 +97,22 @@ def read_api(link, params, flatten_method, data_key, wm_col, last_wm):
     data = resp.json()
 
     if flatten_method == "zip_arrays":
+        # Arrays paralelos: {"hourly": {"time": [...], "temp": [...]}}
         nested = data[data_key]
         keys   = list(nested.keys())
         rows   = [dict(zip(keys, vals)) for vals in zip(*[nested[k] for k in keys])]
-    elif isinstance(data, list):
-        rows = data
-    else:
-        rows = [data]
+        return spark.createDataFrame(rows)
 
+    if flatten_method == "json_normalize":
+        # JSON aninhado: {"data": [{"id":1, "attributes": {"nome":"x"}}]}
+        import pandas as pd
+        raw = data[data_key] if data_key else data
+        raw = raw if isinstance(raw, list) else [raw]
+        return spark.createDataFrame(pd.json_normalize(raw, sep="_"))
+
+    # default: lista direta, lista dentro de chave ou objeto único
+    raw  = data[data_key] if data_key else data
+    rows = raw if isinstance(raw, list) else [raw]
     return spark.createDataFrame(rows)
 
 
