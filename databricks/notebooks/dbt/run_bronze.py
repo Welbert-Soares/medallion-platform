@@ -82,7 +82,11 @@ for project in BRONZE_PROJECTS:
     )
     print(result.stdout)
     if result.returncode != 0:
-        errors.append(f"{project['name']}: {result.stderr[-1000:]}")
+        errors.append(
+            f"{project['name']}:\n"
+            f"--- stdout ---\n{result.stdout[-3000:]}\n"
+            f"--- stderr ---\n{result.stderr[-1000:]}"
+        )
 
 if errors:
     raise Exception(f"dbt bronze failed:\n" + "\n".join(errors))

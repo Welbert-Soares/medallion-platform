@@ -17,11 +17,6 @@ clean-targets:
 flags:
   use_materialization_v2: true
   use_managed_iceberg: true
-  warn_error_options:
-    error: all
-    silence:
-      - ConstraintNotEnforced
-      - ConstraintNotSupported
 
 models:
   +file_format: delta

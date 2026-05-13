@@ -13,12 +13,12 @@
 Databricks Controller/
 Azure Airflow/
 
-# dbt
-dbt/target/
-dbt/dbt_packages/
-dbt/logs/
-dbt/.user.yml
-~/.dbt/profiles.yml
+# dbt — multi-project (each project has its own target/dbt_packages/logs)
+target/
+dbt_packages/
+logs/
+.user.yml
+dbt/**/profiles.yml
 
 # Python
 __pycache__/
@@ -40,3 +40,5 @@ Thumbs.db
 
 # Databricks
 .databricks/
+
+
