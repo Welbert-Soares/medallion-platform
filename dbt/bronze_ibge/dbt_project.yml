@@ -30,7 +30,6 @@ models:
     project: *project_name
 
   bronze_ibge:
-    +database: medallion_bronze
     staging:
       +materialized: view
       +databricks_tags:

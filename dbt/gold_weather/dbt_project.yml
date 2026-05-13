@@ -30,7 +30,6 @@ models:
     project: *project_name
 
   gold_weather:
-    +database: medallion_gold
     staging:
       +materialized: view
       +databricks_tags:

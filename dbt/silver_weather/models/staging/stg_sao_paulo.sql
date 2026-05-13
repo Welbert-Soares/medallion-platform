@@ -5,6 +5,4 @@ select
     cast(-23.5505 as decimal(9,6))                as latitude,
     cast(-46.6333 as decimal(9,6))                as longitude,
     'sao_paulo'                                   as station_id,
-    etl_created_date,
-    etl_updated_date
 from {{ source('bronze_weather', 'sao_paulo') }}

@@ -30,7 +30,6 @@ models:
     project: *project_name
 
   bronze_weather:
-    +database: medallion_bronze
     staging:
       +materialized: view
       +databricks_tags:

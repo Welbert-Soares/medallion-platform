@@ -30,7 +30,6 @@ models:
     project: *project_name
 
   silver_weather:
-    +database: medallion_silver
     staging:
       +materialized: view
       +databricks_tags:
