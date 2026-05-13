@@ -15,6 +15,6 @@ ingestions:
           flag_hash_row: false
         active: true
         csv:
-          path: "/Volumes/raw/sources/files/ibge_municipios.csv"
+          path: "/Volumes/medallion_raw/sources/files/ibge_municipios.csv"
           delimiter: ";"
           header: true

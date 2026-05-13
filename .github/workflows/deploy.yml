@@ -143,11 +143,11 @@ jobs:
           w = WorkspaceClient()
           with open("data/sources/ibge_municipios.csv", "rb") as f:
               w.files.upload(
-                  "/Volumes/raw/sources/files/ibge_municipios.csv",
+                  "/Volumes/medallion_raw/sources/files/ibge_municipios.csv",
                   f,
                   overwrite=True,
               )
-          print("CSV uploaded to /Volumes/raw/sources/files/")
+          print("CSV uploaded to /Volumes/medallion_raw/sources/files/")
           EOF
 
       - name: Upsert job definition
