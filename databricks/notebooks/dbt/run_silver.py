@@ -7,6 +7,10 @@
 
 # COMMAND ----------
 
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
 import subprocess, os, shutil, sys
 
 # dbt é instalado no mesmo venv que o Python do notebook

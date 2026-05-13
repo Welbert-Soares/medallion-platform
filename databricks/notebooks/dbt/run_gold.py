@@ -7,6 +7,10 @@
 
 # COMMAND ----------
 
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
 import subprocess, os, shutil, sys
 
 DBT_CMD = os.path.join(os.path.dirname(sys.executable), "dbt")
