@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: ibge
+    database: medallion_raw
+    schema: ibge
+    loader: generic_ingestion (controller)
+    description: |
+      Dados de referência geográfica do IBGE.
+      Ingestão com overwrite completo (tabela de referência estática).
+
+    tables:
+      - name: municipios
+        description: "Municípios brasileiros com coordenadas geográficas."

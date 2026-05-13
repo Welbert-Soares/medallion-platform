@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: kpi_daily
+    description: "KPIs diários de temperatura e precipitação de São Paulo."
+    columns:
+      - name: reference_date
+        description: "Data de referência."
+        data_tests:
+          - not_null
+          - unique
+      - name: avg_temperature
+      - name: max_temperature
+      - name: min_temperature
+      - name: total_precipitation_mm
+      - name: updated_at

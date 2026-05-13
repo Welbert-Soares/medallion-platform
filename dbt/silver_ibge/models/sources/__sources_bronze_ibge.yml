@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: bronze_ibge
+    database: medallion_bronze
+    schema: ibge
+    loader: bronze_ibge (dbt)
+    description: "Dados de municípios IBGE padronizados na camada bronze."
+
+    tables:
+      - name: municipios
+        description: "Municípios brasileiros com coordenadas geográficas."

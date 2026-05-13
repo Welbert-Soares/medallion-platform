@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: bronze_weather
+    database: medallion_bronze
+    schema: weather
+    loader: bronze_weather (dbt)
+    description: "Dados de weather padronizados na camada bronze."
+
+    tables:
+      - name: sao_paulo
+        description: "Temperatura e precipitação horária de São Paulo."

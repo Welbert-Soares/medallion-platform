@@ -1,0 +1,51 @@
+name: &project_name 'bronze_weather'
+version: '1.0.0'
+
+profile: *project_name
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+flags:
+  use_materialization_v2: true
+  use_managed_iceberg: true
+  warn_error_options:
+    error: all
+    silence:
+      - ConstraintNotEnforced
+      - ConstraintNotSupported
+
+models:
+  +file_format: delta
+  +persist_docs:
+    relation: true
+    columns: true
+  +tblproperties:
+    delta.logRetentionDuration: "7 days"
+    delta.deletedFileRetentionDuration: "7 days"
+  +databricks_tags: &project_tags
+    project: *project_name
+
+  bronze_weather:
+    +database: medallion_bronze
+    +schema: weather
+    staging:
+      +materialized: view
+      +databricks_tags:
+        <<: *project_tags
+        model: "staging"
+    marts:
+      +materialized: incremental
+      +incremental_strategy: merge
+      +on_schema_change: append_new_columns
+      +databricks_tags:
+        <<: *project_tags
+        model: "marts"

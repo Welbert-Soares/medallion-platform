@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: weather
+    database: medallion_raw
+    schema: weather
+    loader: generic_ingestion (controller)
+    description: |
+      Dados de previsão horária do tempo para São Paulo via Open Meteo API.
+      Ingestão diária com append incremental via watermark na coluna `time`.
+
+    tables:
+      - name: sao_paulo
+        description: "Temperatura e precipitação horária — Open Meteo API."

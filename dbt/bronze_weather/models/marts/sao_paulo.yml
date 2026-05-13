@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: sao_paulo
+    description: "Dados horários de temperatura e precipitação de São Paulo — Open Meteo."
+    columns:
+      - name: time
+        description: "Timestamp da medição."
+        data_tests:
+          - not_null
+          - unique
+      - name: temperature_2m
+        description: "Temperatura a 2m do solo em °C."
+      - name: precipitation
+        description: "Precipitação acumulada no período em mm."
+      - name: etl_created_date
+        description: "Data de criação do registro no bronze."
+      - name: etl_updated_date
+        description: "Data da última atualização do registro no bronze."
