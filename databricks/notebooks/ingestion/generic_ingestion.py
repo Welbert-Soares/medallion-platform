@@ -152,7 +152,7 @@ try:
         """)
         print(f"[{ingestion_name}] watermark → {new_wm}")
 
-    log_entry = {
+    spark.createDataFrame([{
         "log_id":         str(datetime.now().timestamp()),
         "ingestion_name": ingestion_name,
         "execution_id":   None,
@@ -162,12 +162,11 @@ try:
         "rows_read":      rows_read,
         "rows_written":   rows_read,
         "error_message":  None,
-    }
+    }]).write.format("delta").mode("append").saveAsTable("cli_catalog.controller.execution_log")
     print(f"[{ingestion_name}] SUCESSO — {rows_read} linhas → {target_table}")
-    dbutils.notebook.exit("success")
 
 except Exception as e:
-    log_entry = {
+    spark.createDataFrame([{
         "log_id":         str(datetime.now().timestamp()),
         "ingestion_name": ingestion_name,
         "execution_id":   None,
@@ -176,10 +175,6 @@ except Exception as e:
         "status":         "failed",
         "rows_read":      rows_read,
         "rows_written":   0,
-        "error_message":  str(e),
-    }
+        "error_message":  str(e)[:2000],
+    }]).write.format("delta").mode("append").saveAsTable("cli_catalog.controller.execution_log")
     raise
-
-finally:
-    spark.createDataFrame([log_entry]).write.format("delta") \
-        .mode("append").saveAsTable("cli_catalog.controller.execution_log")
