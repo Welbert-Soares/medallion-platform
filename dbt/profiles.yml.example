@@ -1,21 +1,75 @@
 # Copy to ~/.dbt/profiles.yml and fill in your credentials.
+# One profile per dbt project — profile name must match the project name in dbt_project.yml.
 # Never commit this file with real values.
-medallion:
+
+utils:
   target: dev
   outputs:
     dev:
       type: databricks
       host: <workspace>.azuredatabricks.net
-      http_path: /sql/1.0/warehouses/<warehouse-id>
+      http_path: /sql/1.0/warehouses/12ca72db06431bb2
       token: <personal-access-token>
-      catalog: cli_catalog
-      schema: silver
+      catalog: medallion_bronze
+      schema: weather
       threads: 4
-    prod:
+
+bronze_weather:
+  target: dev
+  outputs:
+    dev:
       type: databricks
       host: <workspace>.azuredatabricks.net
-      http_path: /sql/1.0/warehouses/<warehouse-id>
-      token: "{{ env_var('DATABRICKS_TOKEN') }}"
-      catalog: cli_catalog
-      schema: silver
+      http_path: /sql/1.0/warehouses/12ca72db06431bb2
+      token: <personal-access-token>
+      catalog: medallion_bronze
+      schema: weather
+      threads: 4
+
+bronze_ibge:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: <workspace>.azuredatabricks.net
+      http_path: /sql/1.0/warehouses/12ca72db06431bb2
+      token: <personal-access-token>
+      catalog: medallion_bronze
+      schema: ibge
+      threads: 4
+
+silver_weather:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: <workspace>.azuredatabricks.net
+      http_path: /sql/1.0/warehouses/12ca72db06431bb2
+      token: <personal-access-token>
+      catalog: medallion_silver
+      schema: weather
+      threads: 4
+
+silver_ibge:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: <workspace>.azuredatabricks.net
+      http_path: /sql/1.0/warehouses/12ca72db06431bb2
+      token: <personal-access-token>
+      catalog: medallion_silver
+      schema: ibge
+      threads: 4
+
+gold_weather:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: <workspace>.azuredatabricks.net
+      http_path: /sql/1.0/warehouses/12ca72db06431bb2
+      token: <personal-access-token>
+      catalog: medallion_gold
+      schema: weather
       threads: 4

@@ -1,5 +1,5 @@
 # Databricks notebook source
-# Installs dbt-databricks and runs gold models.
+# Installs dbt-databricks and runs all gold projects in sequence.
 
 # COMMAND ----------
 
@@ -26,14 +26,24 @@ os.makedirs(PROFILES_DIR, exist_ok=True)
 
 # COMMAND ----------
 
-ctx   = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
-host  = ctx.apiUrl().get().replace("https://", "")
-token = ctx.apiToken().get()
+ctx       = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+host      = ctx.apiUrl().get().replace("https://", "")
+token     = ctx.apiToken().get()
 
 dbutils.widgets.text("warehouse_http_path", "")
 http_path = dbutils.widgets.get("warehouse_http_path")
 
-profiles_yml = f"""medallion:
+GOLD_PROJECTS = [
+    {"name": "gold_weather", "catalog": "medallion_gold", "schema": "weather"},
+]
+
+# COMMAND ----------
+
+def build_profiles(projects):
+    lines = []
+    for p in projects:
+        lines.append(f"""
+{p['name']}:
   target: prod
   outputs:
     prod:
@@ -41,26 +51,39 @@ profiles_yml = f"""medallion:
       host: {host}
       http_path: {http_path}
       token: {token}
-      catalog: medallion_gold
-      schema: weather
+      catalog: {p['catalog']}
+      schema: {p['schema']}
       threads: 4
-"""
+""")
+    return "\n".join(lines)
+
 with open(f"{PROFILES_DIR}/profiles.yml", "w") as f:
-    f.write(profiles_yml)
+    f.write(build_profiles(GOLD_PROJECTS))
 
 # COMMAND ----------
 
-result = subprocess.run(
-    [DBT_CMD, "run", "--select", "tag:gold",
-     "--profiles-dir", PROFILES_DIR, "--no-use-colors"],
-    cwd=DBT_DIR, capture_output=True, text=True
-)
-print(result.stdout)
-if result.returncode != 0:
-    raise Exception(
-        f"dbt gold failed (exit {result.returncode})\n"
-        f"--- stdout ---\n{result.stdout[-3000:]}\n"
-        f"--- stderr ---\n{result.stderr[-2000:]}"
-    )
+errors = []
+for project in GOLD_PROJECTS:
+    project_dir = os.path.join(DBT_DIR, project["name"])
+    print(f"\n{'='*60}")
+    print(f"Running {project['name']} → {project['catalog']}.{project['schema']}")
+    print('='*60)
 
-print("dbt gold — done.")
+    deps = subprocess.run(
+        [DBT_CMD, "deps", "--profiles-dir", PROFILES_DIR, "--no-use-colors"],
+        cwd=project_dir, capture_output=True, text=True
+    )
+    print(deps.stdout)
+
+    result = subprocess.run(
+        [DBT_CMD, "run", "--profiles-dir", PROFILES_DIR, "--no-use-colors"],
+        cwd=project_dir, capture_output=True, text=True
+    )
+    print(result.stdout)
+    if result.returncode != 0:
+        errors.append(f"{project['name']}: {result.stderr[-1000:]}")
+
+if errors:
+    raise Exception(f"dbt gold failed:\n" + "\n".join(errors))
+
+print("\ndbt gold — all projects done.")

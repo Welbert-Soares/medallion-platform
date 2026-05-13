@@ -24,9 +24,22 @@
       "timeout_seconds": 3600
     },
     {
-      "task_key": "dbt_silver",
-      "description": "dbt modelos incrementais — Raw → Silver",
+      "task_key": "dbt_bronze",
+      "description": "dbt bronze — Raw → Bronze (padronização e tipagem)",
       "depends_on": [{"task_key": "ingest_raw"}],
+      "notebook_task": {
+        "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/dbt/run_bronze",
+        "base_parameters": {
+          "warehouse_http_path": "/sql/1.0/warehouses/12ca72db06431bb2"
+        }
+      },
+      "max_retries": 1,
+      "timeout_seconds": 1800
+    },
+    {
+      "task_key": "dbt_silver",
+      "description": "dbt silver — Bronze → Silver (limpeza e regras de negócio)",
+      "depends_on": [{"task_key": "dbt_bronze"}],
       "notebook_task": {
         "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/dbt/run_silver",
         "base_parameters": {
@@ -38,7 +51,7 @@
     },
     {
       "task_key": "dbt_gold",
-      "description": "dbt modelos table — Silver → Gold",
+      "description": "dbt gold — Silver → Gold (KPIs e agregações)",
       "depends_on": [{"task_key": "dbt_silver"}],
       "notebook_task": {
         "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/dbt/run_gold",
