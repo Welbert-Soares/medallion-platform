@@ -10,6 +10,11 @@ ingestion_name = dbutils.widgets.get("ingestion_name")
 if not ingestion_name:
     raise ValueError("Widget 'ingestion_name' é obrigatório.")
 
+# Só permite letras, números e underscore — bloqueia qualquer tentativa de SQL injection
+import re
+if not re.fullmatch(r"[a-zA-Z0-9_]+", ingestion_name):
+    raise ValueError(f"ingestion_name inválido: '{ingestion_name}'")
+
 # COMMAND ----------
 
 import sys
@@ -43,10 +48,10 @@ LOG_SCHEMA = StructType([
 # COMMAND ----------
 # 1. Carregar configuração da controller
 
-config_row = spark.sql(f"""
+config_row = spark.sql("""
     SELECT * FROM cli_catalog.controller.ingestions
-    WHERE ingestion_name = '{ingestion_name}' AND table_active = true
-""").first()
+    WHERE ingestion_name = :name AND table_active = true
+""", args={"name": ingestion_name}).first()
 
 if not config_row:
     raise ValueError(f"Ingestão '{ingestion_name}' não encontrada ou inativa.")
@@ -97,22 +102,22 @@ def read_api(link, params, flatten_method, data_key, wm_col, last_wm):
     data = resp.json()
 
     if flatten_method == "zip_arrays":
-        # Arrays paralelos: {"hourly": {"time": [...], "temp": [...]}}
         nested = data[data_key]
         keys   = list(nested.keys())
         rows   = [dict(zip(keys, vals)) for vals in zip(*[nested[k] for k in keys])]
-        return spark.createDataFrame(rows)
-
-    if flatten_method == "json_normalize":
-        # JSON aninhado: {"data": [{"id":1, "attributes": {"nome":"x"}}]}
+    elif flatten_method == "json_normalize":
         import pandas as pd
-        raw = data[data_key] if data_key else data
-        raw = raw if isinstance(raw, list) else [raw]
-        return spark.createDataFrame(pd.json_normalize(raw, sep="_"))
+        raw  = data[data_key] if data_key else data
+        raw  = raw if isinstance(raw, list) else [raw]
+        rows = pd.json_normalize(raw, sep="_").to_dict(orient="records")
+    else:
+        raw  = data[data_key] if data_key else data
+        rows = raw if isinstance(raw, list) else [raw]
 
-    # default: lista direta, lista dentro de chave ou objeto único
-    raw  = data[data_key] if data_key else data
-    rows = raw if isinstance(raw, list) else [raw]
+    if not rows:
+        print(f"[AVISO] API retornou 0 registros para {link}")
+        return spark.createDataFrame([], schema=StringType())
+
     return spark.createDataFrame(rows)
 
 
@@ -147,33 +152,38 @@ try:
     else:
         raise ValueError(f"source_type desconhecido: {source_type}")
 
-    if flag_distinct:
-        df = df.distinct()
+    if df.isEmpty():
+        print(f"[{ingestion_name}] sem dados novos — pulando escrita.")
+    else:
+        if flag_distinct:
+            df = df.distinct()
 
-    df = normalize_column_names(df)
-    df = (df
-          .withColumn("_ingested_at",    F.current_timestamp())
-          .withColumn("_ingestion_name", F.lit(ingestion_name)))
+        df = normalize_column_names(df)
+        df = (df
+              .withColumn("_ingested_at",    F.current_timestamp())
+              .withColumn("_ingestion_name", F.lit(ingestion_name)))
 
-    # ── Escrita no Bronze ──────────────────────────────────────────────────
-    rows_read = write_to_delta(
-        spark,
-        df,
-        target_table,
-        type_load     = load_mode,
-        merge_columns = merge_key,
-    )
-    print(f"[{ingestion_name}] linhas escritas: {rows_read}")
+        # ── Escrita no Bronze ──────────────────────────────────────────────────
+        rows_read = write_to_delta(
+            spark,
+            df,
+            target_table,
+            type_load     = load_mode,
+            merge_columns = merge_key,
+        )
+        print(f"[{ingestion_name}] linhas escritas: {rows_read}")
 
-    # ── Atualização de watermark ───────────────────────────────────────────
-    if wm_col and wm_col_name:
-        new_wm = df.agg(F.max(wm_col)).first()[0]
-        spark.sql(f"""
-            UPDATE cli_catalog.controller.ingestions
-            SET {wm_col_name} = '{new_wm}', sync_at = current_timestamp()
-            WHERE ingestion_name = '{ingestion_name}'
-        """)
-        print(f"[{ingestion_name}] watermark → {new_wm}")
+        # ── Atualização de watermark ───────────────────────────────────────────
+        if wm_col and wm_col_name:
+            new_wm = df.agg(F.max(wm_col)).first()[0]
+            if new_wm is not None:
+                spark.sql(
+                    f"UPDATE cli_catalog.controller.ingestions "
+                    f"SET {wm_col_name} = :wm, sync_at = current_timestamp() "
+                    f"WHERE ingestion_name = :name",
+                    args={"wm": str(new_wm), "name": ingestion_name},
+                )
+                print(f"[{ingestion_name}] watermark → {new_wm}")
 
     spark.createDataFrame([{
         "log_id":         str(datetime.now().timestamp()),
