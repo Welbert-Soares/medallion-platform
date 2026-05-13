@@ -3,7 +3,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install dbt-databricks --quiet
+# MAGIC %pip install dbt-databricks "protobuf>=5.26.1,<6.0.0" --quiet
 
 # COMMAND ----------
 
