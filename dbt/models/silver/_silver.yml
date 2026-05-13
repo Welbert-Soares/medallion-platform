@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: silver_weather
+    description: "São Paulo hourly weather — cleaned, typed, deduplicated from Open Meteo."
+    columns:
+      - name: measured_at
+        description: "UTC timestamp of measurement."
+        tests:
+          - not_null
+      - name: station_id
+        tests:
+          - not_null
+      - name: temperature_celsius
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: -20
+              max_value: 60
+      - name: precipitation_mm
+        tests:
+          - not_null
+    tests:
+      - unique:
+          column_name: "(station_id || '|' || cast(measured_at as string))"
+
+  - name: silver_ibge
+    description: "IBGE Brazilian municipalities — reference / slowly changing dimension."
+    columns:
+      - name: codigo_ibge
+        tests:
+          - not_null
+          - unique
+      - name: nome
+        tests:
+          - not_null
+      - name: uf
+        tests:
+          - not_null

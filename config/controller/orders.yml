@@ -1,0 +1,21 @@
+ingestions:
+  - name: orders
+    source:
+      type: sql
+      connection_id: sql_orders_postgres
+    target:
+      container: bronze
+      schema: bronze
+    tables:
+      - name: orders_postgres
+        description: "Pedidos do PostgreSQL de demonstração — requer Docker (ver README)"
+        name_target: orders_raw
+        type_load: merge
+        merge_columns: order_id
+        params:
+          flag_distinct: false
+          flag_hash_row: false
+        active: false
+        sql:
+          query: "SELECT * FROM orders WHERE updated_at > ?"
+          watermark_column: updated_at

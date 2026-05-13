@@ -1,0 +1,20 @@
+ingestions:
+  - name: ibge
+    source:
+      type: csv
+    target:
+      container: bronze
+      schema: bronze
+    tables:
+      - name: ibge_municipios
+        description: "Municípios brasileiros — referência geográfica IBGE (32 capitais estaduais + amostra)"
+        name_target: ibge_municipios_raw
+        type_load: overwrite
+        params:
+          flag_distinct: true
+          flag_hash_row: false
+        active: true
+        csv:
+          path: "dbfs:/FileStore/medallion-platform/sources/ibge_municipios.csv"
+          delimiter: ";"
+          header: true

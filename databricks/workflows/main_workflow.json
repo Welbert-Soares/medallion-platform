@@ -1,0 +1,63 @@
+{
+  "name": "medallion-platform-controller",
+  "tasks": [
+    {
+      "task_key": "sync_config",
+      "description": "Sincroniza YAMLs de config/controller/ com cli_catalog.controller.ingestions",
+      "notebook_task": {
+        "notebook_path": "/Shared/medallion-platform/setup/sync_config",
+        "base_parameters": {}
+      },
+      "max_retries": 1,
+      "timeout_seconds": 600
+    },
+    {
+      "task_key": "ingest_bronze",
+      "description": "Ingestão paralela de todas as fontes ativas para o Bronze",
+      "depends_on": [{"task_key": "sync_config"}],
+      "notebook_task": {
+        "notebook_path": "/Shared/medallion-platform/ingestion/controller",
+        "base_parameters": {}
+      },
+      "max_retries": 2,
+      "min_retry_interval_millis": 60000,
+      "timeout_seconds": 3600
+    },
+    {
+      "task_key": "dbt_silver",
+      "description": "dbt modelos incrementais — Bronze → Silver",
+      "depends_on": [{"task_key": "ingest_bronze"}],
+      "notebook_task": {
+        "notebook_path": "/Shared/medallion-platform/dbt/run_silver",
+        "base_parameters": {
+          "warehouse_http_path": "WAREHOUSE_HTTP_PATH_PLACEHOLDER"
+        }
+      },
+      "max_retries": 1,
+      "timeout_seconds": 1800
+    },
+    {
+      "task_key": "dbt_gold",
+      "description": "dbt modelos table — Silver → Gold",
+      "depends_on": [{"task_key": "dbt_silver"}],
+      "notebook_task": {
+        "notebook_path": "/Shared/medallion-platform/dbt/run_gold",
+        "base_parameters": {
+          "warehouse_http_path": "WAREHOUSE_HTTP_PATH_PLACEHOLDER"
+        }
+      },
+      "max_retries": 1,
+      "timeout_seconds": 1800
+    }
+  ],
+  "schedule": {
+    "quartz_cron_expression": "0 0 6 * * ?",
+    "timezone_id": "America/Sao_Paulo",
+    "pause_status": "PAUSED"
+  },
+  "max_concurrent_runs": 1,
+  "tags": {
+    "project": "medallion-platform",
+    "team": "data-engineering"
+  }
+}

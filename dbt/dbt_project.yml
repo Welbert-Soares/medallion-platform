@@ -1,0 +1,22 @@
+name: 'medallion'
+version: '1.0.0'
+config-version: 2
+
+profile: 'medallion'
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  medallion:
+    silver:
+      +materialized: incremental
+      +incremental_strategy: merge
+      +schema: silver
+      +tags: ["silver"]
+    gold:
+      +materialized: table
+      +schema: gold
+      +tags: ["gold"]

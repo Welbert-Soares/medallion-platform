@@ -1,0 +1,41 @@
+# Environment
+.env
+*.env
+
+# Local tooling (não faz parte do projeto)
+.ai-dev-kit/
+.claude/
+.cli-databrics-env/
+.databricks-resources.json
+.mcp.json
+
+# Referência — não commitada no portfólio
+Databricks Controller/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+~/.dbt/profiles.yml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+dist/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Databricks
+.databricks/

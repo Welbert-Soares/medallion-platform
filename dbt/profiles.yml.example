@@ -1,0 +1,21 @@
+# Copy to ~/.dbt/profiles.yml and fill in your credentials.
+# Never commit this file with real values.
+medallion:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: <workspace>.azuredatabricks.net
+      http_path: /sql/1.0/warehouses/<warehouse-id>
+      token: <personal-access-token>
+      catalog: cli_catalog
+      schema: silver
+      threads: 4
+    prod:
+      type: databricks
+      host: <workspace>.azuredatabricks.net
+      http_path: /sql/1.0/warehouses/<warehouse-id>
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      catalog: cli_catalog
+      schema: silver
+      threads: 4

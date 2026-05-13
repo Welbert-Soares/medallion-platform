@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: cli_catalog
+    schema: bronze
+    description: "Raw ingested data from generic_ingestion.py. Never apply business logic here."
+    tables:
+      - name: weather_raw
+        description: "Open Meteo hourly forecast data for São Paulo."
+      - name: ibge_municipios_raw
+        description: "IBGE Brazilian municipalities reference data."
+      - name: orders_raw
+        description: "Orders from PostgreSQL source (requires Docker setup)."

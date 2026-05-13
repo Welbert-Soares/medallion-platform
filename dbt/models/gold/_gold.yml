@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: gold_kpi_daily
+    description: "Daily KPIs crossing weather and orders data. Primary consumption model."
+    columns:
+      - name: reference_date
+        tests:
+          - not_null
+          - unique
+      - name: avg_temperature
+        tests:
+          - not_null
