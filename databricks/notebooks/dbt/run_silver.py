@@ -46,6 +46,16 @@ with open(f"{PROFILES_DIR}/profiles.yml", "w") as f:
 
 # COMMAND ----------
 
+deps = subprocess.run(
+    ["python", "-m", "dbt", "deps",
+     "--profiles-dir", PROFILES_DIR, "--no-use-colors"],
+    cwd=DBT_DIR, capture_output=True, text=True
+)
+print(deps.stdout)
+if deps.returncode != 0:
+    print(deps.stderr)
+    raise Exception(f"dbt deps failed (exit {deps.returncode})")
+
 result = subprocess.run(
     ["python", "-m", "dbt", "run", "--select", "tag:silver",
      "--profiles-dir", PROFILES_DIR, "--no-use-colors"],
