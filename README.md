@@ -1,139 +1,118 @@
 # Medallion Platform
 
-Pipeline de dados end-to-end baseado no padrão Medallion, implementado no Databricks com orquestração via GitHub Actions e transformação com dbt Core.
+Metadata-driven Medallion pipeline on Databricks. Add a new data source by creating a YAML file — no Python required.
 
-**Princípio central:** arquitetura orientada a metadata — adicionar uma nova fonte de dados é uma operação de dados (`INSERT` em uma tabela), não de código.
-
----
-
-## Arquitetura
+## Architecture
 
 ```
-GitHub → CI/CD → Databricks Workflows → Bronze → Silver → Gold → Consumo
-                          ↑
-              cli_catalog.controller.ingestions
-              (catálogo central de fontes)
+config/controller/*.yml            ← source of truth (Git-versioned)
+         ↓  sync_config notebook
+cli_catalog.controller.ingestions  ← runtime config (Delta table)
+         ↓  controller notebook (parallel tasks)
+generic_ingestion notebook         ← Bronze: raw data per source
+         ↓  dbt Core
+cli_catalog.silver.*               ← cleaned, typed, deduplicated
+         ↓  dbt Core
+cli_catalog.gold.*                 ← KPIs and analytics-ready models
 ```
 
-| Camada | Schema | Ferramenta | Responsabilidade |
-|---|---|---|---|
-| Control | `cli_catalog.controller` | SQL | Catálogo de fontes + log de execuções |
-| Bronze | `cli_catalog.bronze` | PySpark + Delta | Dado bruto preservado, append-only |
-| Silver | `cli_catalog.silver` | dbt Core | Limpeza, tipagem, deduplicação |
-| Gold | `cli_catalog.gold` | dbt Core | KPIs e métricas agregadas |
+**Daily job** (`medallion-platform-controller`): `sync_config → ingest_bronze → dbt_silver → dbt_gold`, scheduled 06:00 BRT.
 
-## Estrutura do repositório
+## First-time setup
 
-```
-medallion-platform/
-├── .github/workflows/
-│   ├── ci.yml                  # lint + dbt compile em todo PR
-│   └── deploy.yml              # upload + job update + trigger em merge na main
-├── databricks/
-│   ├── notebooks/
-│   │   ├── setup/
-│   │   │   └── 00_create_tables.py    # setup inicial (rodar uma vez)
-│   │   ├── ingestion/
-│   │   │   ├── controller.py          # orquestra ingestões em paralelo
-│   │   │   └── generic_ingestion.py   # motor de ingestão reutilizável
-│   │   └── dbt/
-│   │       ├── run_silver.py          # executa modelos Silver
-│   │       └── run_gold.py            # executa modelos Gold
-│   └── workflows/
-│       └── main_workflow.json         # job como código (IaC)
-├── dbt/
-│   ├── models/
-│   │   ├── silver/                    # silver_weather.sql, silver_ibge.sql
-│   │   └── gold/                      # gold_kpi_daily.sql
-│   ├── macros/generate_schema_name.sql
-│   ├── dbt_project.yml
-│   └── profiles.yml.example
-├── data/sources/
-│   └── ibge_municipios.csv            # 32 capitais + municípios demo
-├── .env.example
-└── Makefile
-```
+1. Run the `00_create_tables` notebook in Databricks once to create schemas, tables, and the CSV Volume.
+2. Add the GitHub Secrets below to your fork.
+3. Push to `main` — GitHub Actions deploys and runs the pipeline.
 
-## Setup rápido
-
-**Pré-requisitos:** Databricks workspace, Python 3.11+
+## Local development
 
 ```bash
-# 1. Instalar dependências
-make setup
-
-# 2. Copiar e preencher credenciais
-cp .env.example .env
-# editar .env com DATABRICKS_HOST, TOKEN, HTTP_PATH
-
-# 3. Configurar dbt
-cp dbt/profiles.yml.example ~/.dbt/profiles.yml
-# editar com as mesmas credenciais
-
-# 4. Upload manual inicial (antes do GitHub Actions)
-make upload
-
-# 5. Rodar o pipeline
-make run
+make setup      # pip install + copy dbt profiles template
+make compile    # dbt compile — validates SQL without executing
+make test       # dbt compile + dbt test (requires live Databricks connection)
+make docs       # dbt docs generate + serve
+make clean      # dbt clean
 ```
 
-**Primeira vez apenas:** rodar o notebook `databricks/notebooks/setup/00_create_tables.py` no Databricks para criar os schemas e semear as fontes demo.
+Lint: `ruff check databricks/notebooks/ config/utils/ scripts/`
 
-## Adicionando uma nova fonte
+Validate YAML configs: `python scripts/validate_configs.py`
 
-```sql
--- 1. Inserir na tabela de controle
-INSERT INTO cli_catalog.controller.ingestions VALUES (
-  'minha_fonte', 'api',
-  '{"url": "https://api.exemplo.com/data", "params": {...}}',
-  'bronze', 'minha_fonte_raw',
-  'append', NULL, NULL, NULL, true,
-  '{"domain": "meu-dominio", "owner": "meu-time"}',
-  current_timestamp(), current_timestamp()
-);
+## Adding a new source
 
--- 2. Criar modelo Silver correspondente em dbt/models/silver/silver_minha_fonte.sql
--- 3. Abrir PR → ci.yml valida → merge → deploy.yml sobe e executa
+Create `config/controller/<source>.yml`. The next deploy syncs it to the Delta table automatically.
+
+```yaml
+ingestions:
+  - name: my_source
+    source:
+      type: api          # api | csv | sql
+    target:
+      container: bronze
+      schema: bronze
+    tables:
+      - name: my_table_ingestion
+        name_target: my_table_raw
+        type_load: append  # append | overwrite | merge | replace_where
+        active: true
+        url:
+          link: "https://api.example.com/data"
+          mode: fixed      # fixed | template_range | query_params
 ```
 
-## GitHub Secrets necessários
+See `config/controller/weather.yml` (API) and `config/controller/ibge.yml` (CSV) for complete examples.
 
-| Secret | Valor |
+## Deploy (GitHub Actions)
+
+Push to `main` → `deploy.yml` runs automatically:
+
+1. Pulls latest code into the Databricks Repo
+2. Uploads CSV sources to `cli_catalog.bronze.sources` Volume
+3. Upserts the `medallion-platform-controller` job from `databricks/workflows/main_workflow.json`
+4. Triggers a pipeline run
+
+### Required GitHub Secrets
+
+| Secret | Description |
 |---|---|
-| `DATABRICKS_HOST` | `https://<workspace>.azuredatabricks.net` |
-| `DATABRICKS_TOKEN` | Personal Access Token (PAT) |
-| `DATABRICKS_HTTP_PATH` | HTTP Path do SQL Warehouse |
+| `DATABRICKS_HOST` | Workspace URL, e.g. `https://dbc-xxxx.cloud.databricks.com` |
+| `DATABRICKS_TOKEN` | Personal Access Token or Service Principal token |
+| `DATABRICKS_REPO_ID` | Numeric ID of the Databricks Repo (Repos UI → kebab menu → Copy ID) |
 
-## Fontes demo
-
-| Fonte | Tipo | Status |
-|---|---|---|
-| Open Meteo (São Paulo hourly weather) | API REST | ativo |
-| IBGE Municípios (32 municípios) | CSV | ativo |
-| PostgreSQL orders | JDBC/SQL | inativo — requer Docker |
-
-## Comandos úteis
+## Emergency deploy (skip CI)
 
 ```bash
-make compile   # valida SQL dos modelos dbt sem executar
-make test      # roda testes de qualidade dbt
-make docs      # gera e serve documentação dbt
-make upload    # sobe notebooks e dbt project para o Databricks
-make run       # aciona o pipeline manualmente
+# Push to GitHub first, then sync the Repo immediately:
+git push && ./scripts/import_notebooks.sh --sync-only
+
+# For mid-debug iteration (uploads local file directly, then push):
+./scripts/import_notebooks.sh
+git push
 ```
 
-## Monitoramento
+## Catalog layout
+
+| Schema | Content |
+|---|---|
+| `controller` | `ingestions` config table, `execution_log` |
+| `bronze` | Raw Delta tables + `sources` Volume (CSV files) |
+| `silver` | dbt incremental models (cleaned, typed, deduplicated) |
+| `gold` | dbt table models (KPIs, aggregations) |
+
+## Active demo sources
+
+| Source | Type | Target table | Active |
+|---|---|---|---|
+| Open Meteo — São Paulo hourly weather | API | `bronze.weather_raw` | yes |
+| IBGE Municipalities | CSV | `bronze.ibge_municipios_raw` | yes |
+| PostgreSQL orders (demo) | JDBC/SQL | `bronze.orders_raw` | no — requires DB |
+
+## Monitoring
 
 ```sql
--- Status das últimas execuções
+-- Last 24h execution status
 SELECT ingestion_name, status, rows_written, started_at
 FROM cli_catalog.controller.execution_log
 WHERE started_at >= NOW() - INTERVAL 24 HOURS
 ORDER BY started_at DESC;
-
--- Falhas na última semana
-SELECT ingestion_name, COUNT(*) AS failures, MAX(error_message) AS last_error
-FROM cli_catalog.controller.execution_log
-WHERE status = 'failed' AND started_at >= NOW() - INTERVAL 7 DAYS
-GROUP BY 1 ORDER BY 2 DESC;
 ```

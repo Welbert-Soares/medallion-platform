@@ -34,14 +34,12 @@ jobs:
         uses: databricks/setup-cli@main
 
       - name: Update Databricks Repo (pull latest main)
-        run: |
-          databricks repos update ${{ secrets.DATABRICKS_REPO_ID }} --branch main
+        run: databricks repos update ${{ secrets.DATABRICKS_REPO_ID }} --branch main
 
       - name: Upload CSV sources to Unity Catalog Volume
         run: |
           python3 - << 'EOF'
           from databricks.sdk import WorkspaceClient
-          import os
 
           w = WorkspaceClient()
           with open("data/sources/ibge_municipios.csv", "rb") as f:
@@ -56,18 +54,14 @@ jobs:
       - name: Upsert job definition
         run: |
           python3 - << 'EOF'
-          import json, os, re
+          import json, os
           from databricks.sdk import WorkspaceClient
           from databricks.sdk.service.jobs import JobSettings
 
           w = WorkspaceClient()
 
           with open("databricks/workflows/main_workflow.json") as f:
-              raw = f.read().replace(
-                  "WAREHOUSE_HTTP_PATH_PLACEHOLDER",
-                  os.environ["DATABRICKS_HTTP_PATH"],
-              )
-          settings = JobSettings.from_dict(json.loads(raw))
+              settings = JobSettings.from_dict(json.load(f))
 
           existing = next(
               (j for j in w.jobs.list() if j.settings.name == settings.name),
@@ -85,8 +79,6 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a") as f:
               f.write(f"DATABRICKS_JOB_ID={job_id}\n")
           EOF
-        env:
-          DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
 
       - name: Trigger pipeline run
         run: |

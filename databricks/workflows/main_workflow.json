@@ -30,7 +30,7 @@
       "notebook_task": {
         "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/dbt/run_silver",
         "base_parameters": {
-          "warehouse_http_path": "WAREHOUSE_HTTP_PATH_PLACEHOLDER"
+          "warehouse_http_path": "/sql/1.0/warehouses/12ca72db06431bb2"
         }
       },
       "max_retries": 1,
@@ -43,7 +43,7 @@
       "notebook_task": {
         "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/dbt/run_gold",
         "base_parameters": {
-          "warehouse_http_path": "WAREHOUSE_HTTP_PATH_PLACEHOLDER"
+          "warehouse_http_path": "/sql/1.0/warehouses/12ca72db06431bb2"
         }
       },
       "max_retries": 1,

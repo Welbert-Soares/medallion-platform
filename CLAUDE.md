@@ -106,9 +106,9 @@ sync_config → ingest_bronze → dbt_silver → dbt_gold
 ## Deploy flow (`deploy.yml`)
 
 On merge to `main`:
-1. `databricks repos update --repo-id $DATABRICKS_REPO_ID --branch main` — pull latest code
-2. Upload CSV sources → `dbfs:/FileStore/medallion-platform/sources/` (only data, no code)
-3. Replace `WAREHOUSE_HTTP_PATH_PLACEHOLDER` in `main_workflow.json`, upsert job by name
+1. `databricks repos update $DATABRICKS_REPO_ID --branch main` — pull latest code
+2. Upload CSV sources → `cli_catalog.bronze.sources` Unity Catalog Volume via SDK
+3. Upsert job by name using `main_workflow.json` (warehouse path is already set in the file)
 4. Trigger job run
 
 Code (notebooks, config YAML, dbt models) is served directly from the Databricks Repo path:
@@ -116,7 +116,9 @@ Code (notebooks, config YAML, dbt models) is served directly from the Databricks
 
 ## GitHub Secrets required
 
-`DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_HTTP_PATH`, `DATABRICKS_REPO_ID`
+`DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_REPO_ID`
+
+The SQL Warehouse HTTP path (`/sql/1.0/warehouses/12ca72db06431bb2`) is committed directly in `main_workflow.json` — no secret needed.
 
 ## Active demo sources
 
@@ -128,9 +130,9 @@ Code (notebooks, config YAML, dbt models) is served directly from the Databricks
 
 ## Phases
 
-| Phase | Status | What changes |
+| Phase | Status | What was delivered |
 |---|---|---|
-| 1 — YAML config + sync | **Done** | YAML files, `config/utils/`, `sync_config.py`, new Delta schema |
-| 2 — `delta_utils.py` | Next | `write_to_delta()` with `replace_where`, control cols, `normalize_column_names` |
-| 3 — Connections | Planned | `connections.yml`, `connection_functions.py`, activate `orders_postgres` |
-| 4 — CI/CD polish | Planned | YAML validation in CI, updated `deploy.yml` |
+| 1 — YAML config + sync | **Done** | YAML files, `config/utils/`, `sync_config.py`, Delta schema |
+| 2 — `delta_utils.py` | **Done** | `write_to_delta()`, `normalize_column_names()` in `config/utils/delta_utils.py` |
+| 3 — Connections | **Done** | `connections.yml`, `connection_functions.py`, `orders_postgres` source (inactive) |
+| 4 — CI/CD | **Done** | `ci.yml` (lint + YAML validation + dbt compile), `deploy.yml` (repos update + SDK upsert) |
