@@ -16,10 +16,26 @@ import sys
 import json
 from datetime import datetime
 from pyspark.sql import functions as F
+from pyspark.sql.types import (
+    StructType, StructField,
+    StringType, LongType, TimestampType,
+)
 
 REPO_ROOT = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform"
 sys.path.insert(0, REPO_ROOT)
 from config.utils.delta_utils import normalize_column_names, write_to_delta
+
+LOG_SCHEMA = StructType([
+    StructField("log_id",         StringType(),    True),
+    StructField("ingestion_name", StringType(),    False),
+    StructField("execution_id",   StringType(),    True),
+    StructField("started_at",     TimestampType(), False),
+    StructField("finished_at",    TimestampType(), False),
+    StructField("status",         StringType(),    False),
+    StructField("rows_read",      LongType(),      True),
+    StructField("rows_written",   LongType(),      True),
+    StructField("error_message",  StringType(),    True),
+])
 
 # COMMAND ----------
 # 1. Carregar configuração da controller
@@ -162,7 +178,7 @@ try:
         "rows_read":      rows_read,
         "rows_written":   rows_read,
         "error_message":  None,
-    }]).write.format("delta").mode("append").saveAsTable("cli_catalog.controller.execution_log")
+    }], schema=LOG_SCHEMA).write.format("delta").mode("append").saveAsTable("cli_catalog.controller.execution_log")
     print(f"[{ingestion_name}] SUCESSO — {rows_read} linhas → {target_table}")
 
 except Exception as e:
@@ -176,5 +192,5 @@ except Exception as e:
         "rows_read":      rows_read,
         "rows_written":   0,
         "error_message":  str(e)[:2000],
-    }]).write.format("delta").mode("append").saveAsTable("cli_catalog.controller.execution_log")
+    }], schema=LOG_SCHEMA).write.format("delta").mode("append").saveAsTable("cli_catalog.controller.execution_log")
     raise
