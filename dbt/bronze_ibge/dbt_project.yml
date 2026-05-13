@@ -31,7 +31,6 @@ models:
 
   bronze_ibge:
     +database: medallion_bronze
-    +schema: ibge
     staging:
       +materialized: view
       +databricks_tags:

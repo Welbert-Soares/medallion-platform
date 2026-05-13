@@ -31,7 +31,6 @@ models:
 
   silver_ibge:
     +database: medallion_silver
-    +schema: ibge
     staging:
       +materialized: view
       +databricks_tags:

@@ -31,7 +31,6 @@ models:
 
   bronze_weather:
     +database: medallion_bronze
-    +schema: weather
     staging:
       +materialized: view
       +databricks_tags:

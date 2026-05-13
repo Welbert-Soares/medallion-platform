@@ -31,7 +31,6 @@ models:
 
   silver_weather:
     +database: medallion_silver
-    +schema: weather
     staging:
       +materialized: view
       +databricks_tags:
