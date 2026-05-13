@@ -5,7 +5,7 @@
 
 import threading
 
-INGESTION_NOTEBOOK = "/Shared/medallion-platform/ingestion/generic_ingestion"
+INGESTION_NOTEBOOK = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/ingestion/generic_ingestion"
 TIMEOUT_SEC = 3600
 
 # COMMAND ----------

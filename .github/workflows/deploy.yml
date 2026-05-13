@@ -26,42 +26,41 @@ jobs:
           ${{ secrets.DATABRICKS_TOKEN }}
           EOF
 
-      - name: Upload notebooks to workspace
+      - name: Update Databricks Repo (pull latest main)
         run: |
-          databricks workspace import_dir databricks/notebooks \
-            /Shared/medallion-platform --overwrite
+          databricks repos update \
+            --repo-id ${{ secrets.DATABRICKS_REPO_ID }} \
+            --branch main
 
-      - name: Upload dbt project to DBFS
-        run: |
-          databricks fs cp -r dbt/ \
-            dbfs:/FileStore/medallion-platform/dbt --overwrite
-
-      - name: Upload source CSV to DBFS
+      - name: Upload CSV sources to DBFS
         run: |
           databricks fs cp data/sources/ibge_municipios.csv \
             dbfs:/FileStore/medallion-platform/sources/ibge_municipios.csv --overwrite
 
-      - name: Update job definition
+      - name: Upsert job definition
         run: |
-          # Replace warehouse placeholder and upsert job
           sed "s/WAREHOUSE_HTTP_PATH_PLACEHOLDER/${{ secrets.DATABRICKS_HTTP_PATH }}/g" \
             databricks/workflows/main_workflow.json > /tmp/job.json
 
           JOB_ID=$(databricks jobs list --output JSON \
-            | python3 -c "import sys,json; jobs=json.load(sys.stdin).get('jobs',[]); \
-              match=[j['job_id'] for j in jobs if j['settings']['name']=='medallion-platform-controller']; \
-              print(match[0] if match else '')")
+            | python3 -c "
+import sys, json
+jobs = json.load(sys.stdin).get('jobs', [])
+match = [j['job_id'] for j in jobs if j['settings']['name'] == 'medallion-platform-controller']
+print(match[0] if match else '')
+")
 
           if [ -n "$JOB_ID" ]; then
             databricks jobs reset --job-id "$JOB_ID" --json-file /tmp/job.json
             echo "DATABRICKS_JOB_ID=$JOB_ID" >> $GITHUB_ENV
           else
-            NEW_ID=$(databricks jobs create --json-file /tmp/job.json | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
+            NEW_ID=$(databricks jobs create --json-file /tmp/job.json \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
             echo "DATABRICKS_JOB_ID=$NEW_ID" >> $GITHUB_ENV
-            echo "New job created: $NEW_ID"
+            echo "Job criado: $NEW_ID"
           fi
 
       - name: Trigger pipeline run
         run: |
           databricks jobs run-now --job-id "$DATABRICKS_JOB_ID"
-          echo "Pipeline triggered — monitor at ${{ secrets.DATABRICKS_HOST }}/#job/$DATABRICKS_JOB_ID"
+          echo "Pipeline acionado → ${{ secrets.DATABRICKS_HOST }}/#job/$DATABRICKS_JOB_ID"

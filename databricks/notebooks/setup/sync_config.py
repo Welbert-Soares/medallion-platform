@@ -15,11 +15,12 @@ from pyspark.sql import functions as F
 from delta.tables import DeltaTable
 from datetime import datetime
 
-CONFIG_BASE  = "/dbfs/FileStore/medallion-platform/config"
+REPO_ROOT    = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform"
+CONFIG_BASE  = f"{REPO_ROOT}/config"
 SCHEMA_PATH  = f"{CONFIG_BASE}/controller/schemas/ingestions.yml"
 
-# Adiciona o diretório base ao path para importar config.utils.*
-sys.path.insert(0, "/dbfs/FileStore/medallion-platform")
+# Adiciona a raiz do repo ao path para importar config.utils.*
+sys.path.insert(0, REPO_ROOT)
 
 # COMMAND ----------
 
@@ -32,6 +33,7 @@ yaml_files = [
     if f.endswith((".yml", ".yaml"))
     and not f.startswith("connections")
     and f != "schemas"
+    and os.path.isfile(os.path.join(f"{CONFIG_BASE}/controller", f))
 ]
 
 print(f"Arquivos encontrados ({len(yaml_files)}): {[os.path.basename(f) for f in yaml_files]}")

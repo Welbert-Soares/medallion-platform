@@ -3,9 +3,9 @@
   "tasks": [
     {
       "task_key": "sync_config",
-      "description": "Sincroniza YAMLs de config/controller/ com cli_catalog.controller.ingestions",
+      "description": "Sincroniza YAMLs do Repo com cli_catalog.controller.ingestions",
       "notebook_task": {
-        "notebook_path": "/Shared/medallion-platform/setup/sync_config",
+        "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/setup/sync_config",
         "base_parameters": {}
       },
       "max_retries": 1,
@@ -16,7 +16,7 @@
       "description": "Ingestão paralela de todas as fontes ativas para o Bronze",
       "depends_on": [{"task_key": "sync_config"}],
       "notebook_task": {
-        "notebook_path": "/Shared/medallion-platform/ingestion/controller",
+        "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/ingestion/controller",
         "base_parameters": {}
       },
       "max_retries": 2,
@@ -28,7 +28,7 @@
       "description": "dbt modelos incrementais — Bronze → Silver",
       "depends_on": [{"task_key": "ingest_bronze"}],
       "notebook_task": {
-        "notebook_path": "/Shared/medallion-platform/dbt/run_silver",
+        "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/dbt/run_silver",
         "base_parameters": {
           "warehouse_http_path": "WAREHOUSE_HTTP_PATH_PLACEHOLDER"
         }
@@ -41,7 +41,7 @@
       "description": "dbt modelos table — Silver → Gold",
       "depends_on": [{"task_key": "dbt_silver"}],
       "notebook_task": {
-        "notebook_path": "/Shared/medallion-platform/dbt/run_gold",
+        "notebook_path": "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/databricks/notebooks/dbt/run_gold",
         "base_parameters": {
           "warehouse_http_path": "WAREHOUSE_HTTP_PATH_PLACEHOLDER"
         }

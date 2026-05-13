@@ -9,8 +9,8 @@
 
 import subprocess, os, shutil
 
-DBT_SRC = "/dbfs/FileStore/medallion-platform/dbt"
-DBT_DIR = "/tmp/medallion-dbt"
+DBT_SRC      = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/dbt"
+DBT_DIR      = "/tmp/medallion-dbt"
 PROFILES_DIR = "/tmp/medallion-profiles"
 
 if os.path.exists(DBT_DIR):

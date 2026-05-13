@@ -106,16 +106,17 @@ sync_config → ingest_bronze → dbt_silver → dbt_gold
 ## Deploy flow (`deploy.yml`)
 
 On merge to `main`:
-1. Upload notebooks → `/Shared/medallion-platform/`
-2. Upload `config/` → `dbfs:/FileStore/medallion-platform/config/`
-3. Upload `dbt/` → `dbfs:/FileStore/medallion-platform/dbt/`
-4. Upload CSVs → `dbfs:/FileStore/medallion-platform/sources/`
-5. Replace `WAREHOUSE_HTTP_PATH_PLACEHOLDER` in `main_workflow.json`, upsert job by name
-6. Trigger job run
+1. `databricks repos update --repo-id $DATABRICKS_REPO_ID --branch main` — pull latest code
+2. Upload CSV sources → `dbfs:/FileStore/medallion-platform/sources/` (only data, no code)
+3. Replace `WAREHOUSE_HTTP_PATH_PLACEHOLDER` in `main_workflow.json`, upsert job by name
+4. Trigger job run
+
+Code (notebooks, config YAML, dbt models) is served directly from the Databricks Repo path:
+`/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/`
 
 ## GitHub Secrets required
 
-`DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_HTTP_PATH`
+`DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `DATABRICKS_HTTP_PATH`, `DATABRICKS_REPO_ID`
 
 ## Active demo sources
 

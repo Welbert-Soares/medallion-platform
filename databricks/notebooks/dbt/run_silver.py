@@ -10,10 +10,11 @@
 import subprocess, os, shutil
 
 # dbt project is uploaded to DBFS during deploy
-DBT_SRC = "/dbfs/FileStore/medallion-platform/dbt"
-DBT_DIR = "/tmp/medallion-dbt"
+DBT_SRC      = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/dbt"
+DBT_DIR      = "/tmp/medallion-dbt"
 PROFILES_DIR = "/tmp/medallion-profiles"
 
+# Copia para /tmp pois /Workspace é read-only para artefatos do dbt (target/)
 if os.path.exists(DBT_DIR):
     shutil.rmtree(DBT_DIR)
 shutil.copytree(DBT_SRC, DBT_DIR)
