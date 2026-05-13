@@ -42,5 +42,3 @@ models:
       +databricks_tags:
         <<: *project_tags
         model: "marts"
-      +grants:
-        select: ['grp-analista']
