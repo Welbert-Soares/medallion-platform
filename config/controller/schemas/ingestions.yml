@@ -65,3 +65,55 @@ ingestions:
             active:
               type: boolean
               required: true
+            url:
+              type: dict
+              required: false
+              schema:
+                link:
+                  type: string
+                  required: true
+                mode:
+                  type: string
+                  required: false
+                params:
+                  type: dict
+                  required: false
+                  allow_unknown: true
+                flatten_method:
+                  type: string
+                  required: false
+                data_key:
+                  type: string
+                  required: false
+                watermark_column:
+                  type: string
+                  required: false
+            csv:
+              type: dict
+              required: false
+              schema:
+                path:
+                  type: string
+                  required: true
+                delimiter:
+                  type: string
+                  required: false
+                header:
+                  type: boolean
+                  required: false
+            sql:
+              type: dict
+              required: false
+              schema:
+                query:
+                  type: string
+                  required: false
+                filter:
+                  type: string
+                  required: false
+                watermark_column:
+                  type: string
+                  required: false
+                partition_column:
+                  type: string
+                  required: false

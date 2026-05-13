@@ -32,10 +32,10 @@ jobs:
             --repo-id ${{ secrets.DATABRICKS_REPO_ID }} \
             --branch main
 
-      - name: Upload CSV sources to DBFS
+      - name: Upload CSV sources to Unity Catalog Volume
         run: |
           databricks fs cp data/sources/ibge_municipios.csv \
-            dbfs:/FileStore/medallion-platform/sources/ibge_municipios.csv --overwrite
+            /Volumes/cli_catalog/bronze/sources/ibge_municipios.csv --overwrite
 
       - name: Upsert job definition
         run: |

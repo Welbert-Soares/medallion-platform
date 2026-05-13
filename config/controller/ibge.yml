@@ -15,6 +15,6 @@ ingestions:
           flag_hash_row: false
         active: true
         csv:
-          path: "dbfs:/FileStore/medallion-platform/sources/ibge_municipios.csv"
+          path: "/Volumes/cli_catalog/bronze/sources/ibge_municipios.csv"
           delimiter: ";"
           header: true

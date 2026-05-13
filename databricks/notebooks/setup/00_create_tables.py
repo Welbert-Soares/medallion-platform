@@ -77,4 +77,12 @@ COMMENT 'Execution log for all ingestion pipeline runs'
 """)
 
 print("Tables ready.")
-print("Next step: run sync_config.py to populate controller.ingestions from YAML files.")
+
+# COMMAND ----------
+
+spark.sql("""
+  CREATE VOLUME IF NOT EXISTS cli_catalog.bronze.sources
+  COMMENT 'Static source files (CSV, JSON) for ingestion'
+""")
+print("Volume cli_catalog.bronze.sources ready.")
+print("Next step: upload source files then run sync_config.py.")
