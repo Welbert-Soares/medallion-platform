@@ -42,8 +42,9 @@ CREATE TABLE IF NOT EXISTS medallion_controller.delta_controller.ingestions (
   table_merge_columns   STRING,
   table_active          BOOLEAN NOT NULL,
   -- Params
-  table_params_flag_distinct  BOOLEAN,
-  table_params_flag_hash_row  BOOLEAN,
+  table_params_flag_distinct    BOOLEAN,
+  table_params_flag_hash_row    BOOLEAN,
+  table_params_flag_data_factory BOOLEAN,
   -- API-specific
   table_url_link              STRING,
   table_url_mode              STRING,

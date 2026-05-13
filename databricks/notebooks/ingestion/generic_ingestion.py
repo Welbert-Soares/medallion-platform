@@ -80,13 +80,15 @@ elif source_type == "csv":
     last_wm   = None
     wm_col_name = None
 
-elif source_type == "sql":
-    sql_query   = config_row["table_sql_query"]
-    sql_filter  = config_row["table_sql_filter"]
-    conn_id     = config_row["source_connection_id"]
-    wm_col      = config_row["table_sql_watermark_column"]
-    last_wm     = config_row["table_sql_last_watermark"]
-    wm_col_name = "table_sql_last_watermark"
+elif source_type in ("sql", "table"):
+    sql_query      = config_row["table_sql_query"]
+    sql_filter     = config_row["table_sql_filter"]
+    sql_partition  = config_row["table_sql_partition_column"]
+    conn_id        = config_row["source_connection_id"]
+    source_schema  = config_row["source_schema"]
+    wm_col         = config_row["table_sql_watermark_column"]
+    last_wm        = config_row["table_sql_last_watermark"]
+    wm_col_name    = "table_sql_last_watermark"
 
 print(f"[{ingestion_name}] source_type={source_type} | target={target_table} | mode={load_mode}")
 
@@ -129,12 +131,13 @@ def read_csv(path, delimiter, header):
             .csv(path))
 
 
-def read_sql(query, sql_filter, conn_id, wm_col, last_wm):
+def read_sql(query, sql_filter, conn_id, wm_col, last_wm, partition_col=None):
     if wm_col and last_wm and "?" in query:
         query = query.replace("?", f"'{last_wm}'")
     if sql_filter:
         query = f"{query} {sql_filter}"
-    return get_jdbc_reader(spark, dbutils, conn_id, query, CONNECTIONS_PATH)
+    return get_jdbc_reader(spark, dbutils, conn_id, query, CONNECTIONS_PATH,
+                           partition_column=partition_col)
 
 # COMMAND ----------
 # 3. Ler dados, escrever no Bronze, registrar log
@@ -147,8 +150,8 @@ try:
         df = read_api(api_link, api_params, api_flatten, api_data_key, wm_col, last_wm)
     elif source_type == "csv":
         df = read_csv(csv_path, csv_delim, csv_hdr)
-    elif source_type == "sql":
-        df = read_sql(sql_query, sql_filter, conn_id, wm_col, last_wm)
+    elif source_type in ("sql", "table"):
+        df = read_sql(sql_query, sql_filter, conn_id, wm_col, last_wm, sql_partition)
     else:
         raise ValueError(f"source_type desconhecido: {source_type}")
 

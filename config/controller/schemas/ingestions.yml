@@ -12,7 +12,7 @@ ingestions:
         schema:
           type:
             type: string
-            allowed: [api, csv, sql]
+            allowed: [api, csv, sql, table]
             required: true
           connection_id:
             type: string
@@ -62,6 +62,9 @@ ingestions:
                 flag_hash_row:
                   type: boolean
                   required: true
+                flag_data_factory:
+                  type: boolean
+                  required: false
             active:
               type: boolean
               required: true
