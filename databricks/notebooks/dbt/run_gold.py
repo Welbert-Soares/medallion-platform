@@ -7,7 +7,9 @@
 
 # COMMAND ----------
 
-import subprocess, os, shutil
+import subprocess, os, shutil, sys
+
+DBT_CMD = os.path.join(os.path.dirname(sys.executable), "dbt")
 
 DBT_SRC      = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/dbt"
 DBT_DIR      = "/tmp/medallion-dbt"
@@ -45,13 +47,16 @@ with open(f"{PROFILES_DIR}/profiles.yml", "w") as f:
 # COMMAND ----------
 
 result = subprocess.run(
-    ["python", "-m", "dbt", "run", "--select", "tag:gold",
+    [DBT_CMD, "run", "--select", "tag:gold",
      "--profiles-dir", PROFILES_DIR, "--no-use-colors"],
     cwd=DBT_DIR, capture_output=True, text=True
 )
 print(result.stdout)
 if result.returncode != 0:
-    print(result.stderr)
-    raise Exception(f"dbt gold failed (exit {result.returncode})")
+    raise Exception(
+        f"dbt gold failed (exit {result.returncode})\n"
+        f"--- stdout ---\n{result.stdout[-3000:]}\n"
+        f"--- stderr ---\n{result.stderr[-2000:]}"
+    )
 
 print("dbt gold — done.")

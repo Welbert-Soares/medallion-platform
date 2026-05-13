@@ -7,7 +7,10 @@
 
 # COMMAND ----------
 
-import subprocess, os, shutil
+import subprocess, os, shutil, sys
+
+# dbt é instalado no mesmo venv que o Python do notebook
+DBT_CMD = os.path.join(os.path.dirname(sys.executable), "dbt")
 
 # dbt project is uploaded to DBFS during deploy
 DBT_SRC      = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform/dbt"
@@ -47,13 +50,16 @@ with open(f"{PROFILES_DIR}/profiles.yml", "w") as f:
 # COMMAND ----------
 
 result = subprocess.run(
-    ["python", "-m", "dbt", "run", "--select", "tag:silver",
+    [DBT_CMD, "run", "--select", "tag:silver",
      "--profiles-dir", PROFILES_DIR, "--no-use-colors"],
     cwd=DBT_DIR, capture_output=True, text=True
 )
 print(result.stdout)
 if result.returncode != 0:
-    print(result.stderr)
-    raise Exception(f"dbt silver failed (exit {result.returncode})")
+    raise Exception(
+        f"dbt silver failed (exit {result.returncode})\n"
+        f"--- stdout ---\n{result.stdout[-3000:]}\n"
+        f"--- stderr ---\n{result.stderr[-2000:]}"
+    )
 
 print("dbt silver — done.")
