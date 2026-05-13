@@ -4,5 +4,5 @@ select
     uf,
     capital                    as is_capital,
     latitude,
-    longitude,
+    longitude
 from {{ source('bronze_ibge', 'municipios') }}
