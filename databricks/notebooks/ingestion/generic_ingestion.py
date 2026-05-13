@@ -12,9 +12,14 @@ if not ingestion_name:
 
 # COMMAND ----------
 
+import sys
 import json
 from datetime import datetime
 from pyspark.sql import functions as F
+
+REPO_ROOT = "/Workspace/Repos/welbertsoares6@gmail.com/medallion-platform"
+sys.path.insert(0, REPO_ROOT)
+from config.utils.delta_utils import normalize_column_names, write_to_delta
 
 # COMMAND ----------
 # 1. Carregar configuração da controller
@@ -122,33 +127,20 @@ try:
     if flag_distinct:
         df = df.distinct()
 
+    df = normalize_column_names(df)
     df = (df
           .withColumn("_ingested_at",    F.current_timestamp())
           .withColumn("_ingestion_name", F.lit(ingestion_name)))
 
-    rows_read = df.count()
-    print(f"[{ingestion_name}] linhas lidas: {rows_read}")
-
     # ── Escrita no Bronze ──────────────────────────────────────────────────
-    writer = df.write.format("delta").option("mergeSchema", "true")
-
-    if load_mode == "append":
-        writer.mode("append").saveAsTable(target_table)
-
-    elif load_mode == "overwrite":
-        writer.mode("overwrite").saveAsTable(target_table)
-
-    elif load_mode == "merge":
-        from delta.tables import DeltaTable
-        if DeltaTable.isDeltaTable(spark, target_table):
-            dt = DeltaTable.forName(spark, target_table)
-            (dt.alias("t")
-             .merge(df.alias("s"), f"t.{merge_key} = s.{merge_key}")
-             .whenMatchedUpdateAll()
-             .whenNotMatchedInsertAll()
-             .execute())
-        else:
-            writer.mode("overwrite").saveAsTable(target_table)
+    rows_read = write_to_delta(
+        spark,
+        df,
+        target_table,
+        type_load     = load_mode,
+        merge_columns = merge_key,
+    )
+    print(f"[{ingestion_name}] linhas escritas: {rows_read}")
 
     # ── Atualização de watermark ───────────────────────────────────────────
     if wm_col and wm_col_name:
