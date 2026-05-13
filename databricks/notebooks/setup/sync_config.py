@@ -12,6 +12,10 @@ import os
 import sys
 import yaml
 from pyspark.sql import functions as F
+from pyspark.sql.types import (
+    StructType, StructField,
+    StringType, BooleanType, TimestampType,
+)
 from delta.tables import DeltaTable
 from datetime import datetime
 
@@ -81,19 +85,41 @@ for row in lst_ingestions:
 
 # COMMAND ----------
 
-df_new = spark.createDataFrame(lst_ingestions)
+INGESTIONS_SCHEMA = StructType([
+    StructField("ingestion_name",              StringType(),    False),
+    StructField("source_name",                 StringType(),    False),
+    StructField("source_type",                 StringType(),    False),
+    StructField("source_connection_id",        StringType(),    True),
+    StructField("source_schema",               StringType(),    True),
+    StructField("target_container",            StringType(),    False),
+    StructField("target_schema",               StringType(),    False),
+    StructField("table_name_target",           StringType(),    False),
+    StructField("table_description",           StringType(),    True),
+    StructField("table_type_load",             StringType(),    False),
+    StructField("table_merge_columns",         StringType(),    True),
+    StructField("table_active",                BooleanType(),   False),
+    StructField("table_params_flag_distinct",  BooleanType(),   True),
+    StructField("table_params_flag_hash_row",  BooleanType(),   True),
+    StructField("table_url_link",              StringType(),    True),
+    StructField("table_url_mode",              StringType(),    True),
+    StructField("table_url_params",            StringType(),    True),
+    StructField("table_url_flatten_method",    StringType(),    True),
+    StructField("table_url_data_key",          StringType(),    True),
+    StructField("table_url_watermark_column",  StringType(),    True),
+    StructField("table_url_last_watermark",    TimestampType(), True),
+    StructField("table_csv_path",              StringType(),    True),
+    StructField("table_csv_delimiter",         StringType(),    True),
+    StructField("table_csv_header",            BooleanType(),   True),
+    StructField("table_sql_query",             StringType(),    True),
+    StructField("table_sql_filter",            StringType(),    True),
+    StructField("table_sql_watermark_column",  StringType(),    True),
+    StructField("table_sql_last_watermark",    TimestampType(), True),
+    StructField("table_sql_partition_column",  StringType(),    True),
+    StructField("sync_at",                     TimestampType(), True),
+])
 
-# Cast de tipos para bater com o schema Delta
-df_new = (df_new
-    .withColumn("table_active",               F.col("table_active").cast("boolean"))
-    .withColumn("table_params_flag_distinct",  F.col("table_params_flag_distinct").cast("boolean"))
-    .withColumn("table_params_flag_hash_row",  F.col("table_params_flag_hash_row").cast("boolean"))
-    .withColumn("table_csv_header",            F.col("table_csv_header").cast("boolean"))
-    .withColumn("table_url_last_watermark",    F.col("table_url_last_watermark").cast("timestamp"))
-    .withColumn("table_sql_last_watermark",    F.col("table_sql_last_watermark").cast("timestamp"))
-    .withColumn("sync_at",                     F.col("sync_at").cast("timestamp"))
-    .withColumn("table_name_target",           F.lower(F.col("table_name_target")))
-)
+df_new = spark.createDataFrame(lst_ingestions, schema=INGESTIONS_SCHEMA)
+df_new = df_new.withColumn("table_name_target", F.lower(F.col("table_name_target")))
 
 display(df_new.select(
     "ingestion_name", "source_name", "source_type",
