@@ -48,6 +48,85 @@ jobs:
       - name: Update Databricks Repo (pull latest main)
         run: databricks repos update "$DATABRICKS_REPO_ID" --branch main
 
+      - name: Ensure schemas, tables and volumes exist
+        run: |
+          python3 - << 'EOF'
+          import os, time
+          from databricks.sdk import WorkspaceClient
+          from databricks.sdk.service.sql import StatementState
+
+          WAREHOUSE_ID = "12ca72db06431bb2"
+
+          ddl_statements = [
+              "CREATE SCHEMA IF NOT EXISTS cli_catalog.controller COMMENT 'Control tables for the metadata-driven ingestion pipeline'",
+              "CREATE SCHEMA IF NOT EXISTS cli_catalog.raw       COMMENT 'Landing zone — data as-is from sources, no transformations'",
+              "CREATE SCHEMA IF NOT EXISTS cli_catalog.bronze    COMMENT 'Standardized and typed data managed by dbt Core'",
+              "CREATE SCHEMA IF NOT EXISTS cli_catalog.silver    COMMENT 'Cleaned and deduplicated data managed by dbt Core'",
+              "CREATE SCHEMA IF NOT EXISTS cli_catalog.gold      COMMENT 'Aggregated KPIs and analytics-ready models managed by dbt Core'",
+              """CREATE TABLE IF NOT EXISTS cli_catalog.controller.ingestions (
+                ingestion_name        STRING  NOT NULL,
+                source_name           STRING  NOT NULL,
+                source_type           STRING  NOT NULL,
+                source_connection_id  STRING,
+                source_schema         STRING,
+                target_container      STRING  NOT NULL,
+                target_schema         STRING  NOT NULL,
+                table_name_target     STRING  NOT NULL,
+                table_description     STRING,
+                table_type_load       STRING  NOT NULL,
+                table_merge_columns   STRING,
+                table_active          BOOLEAN NOT NULL,
+                table_params_flag_distinct  BOOLEAN,
+                table_params_flag_hash_row  BOOLEAN,
+                table_url_link              STRING,
+                table_url_mode              STRING,
+                table_url_params            STRING,
+                table_url_flatten_method    STRING,
+                table_url_data_key          STRING,
+                table_url_watermark_column  STRING,
+                table_url_last_watermark    TIMESTAMP,
+                table_csv_path              STRING,
+                table_csv_delimiter         STRING,
+                table_csv_header            BOOLEAN,
+                table_sql_query             STRING,
+                table_sql_filter            STRING,
+                table_sql_watermark_column  STRING,
+                table_sql_last_watermark    TIMESTAMP,
+                table_sql_partition_column  STRING,
+                sync_at               TIMESTAMP,
+                CONSTRAINT pk_ingestion_name PRIMARY KEY (ingestion_name)
+              ) USING DELTA COMMENT 'Central catalog of ingestion pipeline configurations'""",
+              """CREATE TABLE IF NOT EXISTS cli_catalog.controller.execution_log (
+                log_id         STRING,
+                ingestion_name STRING    NOT NULL,
+                execution_id   STRING,
+                started_at     TIMESTAMP NOT NULL,
+                finished_at    TIMESTAMP NOT NULL,
+                status         STRING    NOT NULL,
+                rows_read      LONG,
+                rows_written   LONG,
+                error_message  STRING
+              ) USING DELTA COMMENT 'Execution log for all ingestion pipeline runs'""",
+              "CREATE VOLUME IF NOT EXISTS cli_catalog.raw.sources COMMENT 'Static source files (CSV, JSON) for ingestion'",
+          ]
+
+          w = WorkspaceClient()
+          for stmt in ddl_statements:
+              label = stmt.strip().splitlines()[0][:80]
+              result = w.statement_execution.execute_statement(
+                  statement=stmt,
+                  warehouse_id=WAREHOUSE_ID,
+              )
+              while result.status.state in (StatementState.PENDING, StatementState.RUNNING):
+                  time.sleep(2)
+                  result = w.statement_execution.get_statement(result.statement_id)
+              if result.status.state != StatementState.SUCCEEDED:
+                  raise RuntimeError(f"DDL falhou [{result.status.state}]: {label}")
+              print(f"OK: {label}")
+
+          print("Infraestrutura verificada e atualizada.")
+          EOF
+
       - name: Upload CSV sources to Unity Catalog Volume
         run: |
           python3 - << 'EOF'
@@ -56,11 +135,11 @@ jobs:
           w = WorkspaceClient()
           with open("data/sources/ibge_municipios.csv", "rb") as f:
               w.files.upload(
-                  "/Volumes/cli_catalog/bronze/sources/ibge_municipios.csv",
+                  "/Volumes/cli_catalog/raw/sources/ibge_municipios.csv",
                   f,
                   overwrite=True,
               )
-          print("CSV uploaded to /Volumes/cli_catalog/bronze/sources/")
+          print("CSV uploaded to /Volumes/cli_catalog/raw/sources/")
           EOF
 
       - name: Upsert job definition
