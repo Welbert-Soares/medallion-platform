@@ -1,4 +1,4 @@
 packages:
-- local: ../utils
-  name: utils
-sha1_hash: 829886a32aa8770672df5ade123e6e66681c312d
+  - local: ../utils
+    name: utils
+sha1_hash: 5f0273ce9352697c423e747d5d875c11459f92d2
