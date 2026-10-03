@@ -1,5 +1,4 @@
 import json
-import yaml
 from .yaml_schema_validator import YAMLSchemaValidator
 from .macro_resolver import resolve_all
 

@@ -35,9 +35,9 @@ jobs:
       - name: Configure dbt profile
         run: |
           mkdir -p ~/.dbt
-          python3 -c "
+          python3 - << 'EOF'
           import pathlib
-          p = pathlib.Path.home() / '.dbt' / 'profiles.yml'
+          p = pathlib.Path.home() / ".dbt" / "profiles.yml"
           profiles = ""
           for project, catalog, schema in [
               ("bronze_weather", "medallion_bronze", "weather"),
@@ -48,7 +48,7 @@ jobs:
           ]:
               profiles += f"{project}:\n  target: ci\n  outputs:\n    ci:\n      type: databricks\n      host: placeholder\n      http_path: placeholder\n      token: placeholder\n      catalog: {catalog}\n      schema: {schema}\n      threads: 1\n"
           p.write_text(profiles)
-          "
+          EOF
 
       - name: dbt parse (syntax + Jinja validation, no DB connection)
         run: |

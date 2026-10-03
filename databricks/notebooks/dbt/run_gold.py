@@ -11,7 +11,10 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
-import subprocess, os, shutil, sys
+import subprocess
+import os
+import shutil
+import sys
 
 DBT_CMD = os.path.join(os.path.dirname(sys.executable), "dbt")
 
@@ -88,6 +91,6 @@ for project in GOLD_PROJECTS:
         )
 
 if errors:
-    raise Exception(f"dbt gold failed:\n" + "\n".join(errors))
+    raise Exception("dbt gold failed:\n" + "\n".join(errors))
 
 print("\ndbt gold — all projects done.")
