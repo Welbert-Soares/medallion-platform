@@ -62,6 +62,11 @@ the overview, the job diagram and the `make` targets.
   calling `medallion-run-ingestion` per active Ingestion → one `dbt_task` per dbt project.
   Bronze runs with `run_if: ALL_DONE`; the leaf `ingestions_succeeded` makes the Run fail when any
   Ingestion failed. Adding a dbt project means adding its task (`tests/test_bundle_job.py` checks).
+- dbt tasks: the `dbt_task` copies `project_directory` to `/tmp` before running, so every task
+  points at the whole `./dbt` folder (the shared `../utils` package must travel with it) and picks
+  its project with `--project-dir <project>`. Databricks names the profile it generates after the
+  root `dbt/dbt_project.yml` (`medallion`), so connecting commands pass `--profile medallion`.
+  Local `dbt parse` and CI cannot catch breakage here; only a Run does.
 - Deploy (`.github/workflows/deploy.yml`, on merge to `main`): Catalog Structure apply → secret
   scopes → CSV upload to `/Volumes/medallion_raw/sources/files/` → `bundle deploy`. No Run is
   triggered. GitHub environment `prod` holds `DATABRICKS_HOST` / `DATABRICKS_TOKEN`.
@@ -73,6 +78,8 @@ the overview, the job diagram and the `make` targets.
 - `models/sources/__sources_*.yml`, `models/staging/stg_*` views (casting/renaming, dedup in
   bronze), `models/marts/*` incremental merge via `utils.incremental_join_where(ref(...), key)`,
   which adds `etl_created_date` / `etl_updated_date`.
+- Raw tracking columns are `_run_id` and `_ingested_at` only; tables written before the cutover may
+  still carry a legacy `_ingestion_name`, which models must not select.
 - Bronze reads `source('{system}', ...)` from raw; silver reads `source('bronze_{system}', ...)`;
   gold reads `source('silver_{system}', ...)`.
 
