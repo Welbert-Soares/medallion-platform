@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from medallion.controller.clock import Clock
-from medallion.controller.config.model import Ingestion
+from medallion.controller.config.model import ApiSource, Ingestion
 from medallion.controller.runtime import IngestionCatalog, IngestionRun, IngestionState, RunLog
+from medallion.ingestion.window import DateWindow, resolve_window
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,11 @@ class SourceReader(Protocol):
         """Identity of the source content (e.g. file hash), or None when the source has none."""
         ...
 
-    def read(self, ingestion: Ingestion, watermark: str | None) -> ReadResult: ...
+    def read(
+        self, ingestion: Ingestion, watermark: str | None, window: DateWindow | None
+    ) -> ReadResult:
+        """`window` is the resolved date window of an API Ingestion that declares one."""
+        ...
 
 
 class RawWriter(Protocol):
@@ -43,8 +48,11 @@ def run_ingestion(
 ) -> IngestionRun:
     """Read the source, append it to Raw, then advance the Ingestion State and log the run.
 
-    The state only advances after Raw was written. On any error the failure is logged, the
-    state is left as it was, and the error is re-raised so the job task fails.
+    An API Ingestion with a window reads from the day after its Watermark up to today minus
+    the lag, and its Watermark becomes the window end; an empty window is skipped without
+    calling the source. The state only advances after Raw was written. On any error the
+    failure is logged, the state is left as it was, and the error is re-raised so the job
+    task fails.
     """
     started_at = clock.now()
     before: str | None = None
@@ -68,13 +76,24 @@ def run_ingestion(
         if fingerprint is not None and fingerprint == before:
             return log("skipped", before)
 
-        result = reader.read(ingestion, before)
+        window = None
+        if isinstance(ingestion.source, ApiSource) and ingestion.source.window:
+            window = resolve_window(ingestion.source.window, before, clock.today())
+            if window is None:
+                return log("skipped", before)
+
+        result = reader.read(ingestion, before, window)
         rows_read = result.rows_read
         if rows_read:
             stamp = {"_run_id": run_id, "_ingested_at": started_at}
             rows_written = writer.append(catalog.raw_table_of(ingestion), result.data, stamp)
 
-        after = fingerprint if fingerprint is not None else (result.watermark or before)
+        if fingerprint is not None:
+            after = fingerprint
+        elif window is not None:
+            after = window.end.isoformat()
+        else:
+            after = result.watermark or before
         catalog.save_state(IngestionState(name, after, run_id, clock.now()))
     except Exception as e:
         log("failed", before, f"{type(e).__name__}: {e}")

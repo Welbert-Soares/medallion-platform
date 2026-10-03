@@ -312,10 +312,13 @@ def test_repository_config_mirrors_current_platform():
         "medallion_controller", "controller")
     assert {s.name for s in structure.source_systems} == {"weather", "ibge", "orders"}
     assert {config.raw_table_of(i): (i.source.type, i.active) for i in config.ingestions} == {
-        "medallion_raw.weather.sao_paulo": ("api", False),  # until the API reader (#8)
+        "medallion_raw.weather.sao_paulo": ("api", True),
         "medallion_raw.ibge.municipios": ("csv", True),
         "medallion_raw.orders.orders": ("sql", False),
     }
+    weather = config.ingestion("weather_sao_paulo").source
+    assert weather.url == "https://archive-api.open-meteo.com/v1/archive"
+    assert (weather.window.start_date, weather.window.lag_days) == (date(2026, 1, 1), 5)
 
 
 def test_validate_command_succeeds_on_valid_config(tmp_path, capsys):

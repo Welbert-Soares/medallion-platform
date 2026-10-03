@@ -40,13 +40,13 @@ class FakeReader:
         self._fingerprint = fingerprint
         self.watermark = watermark
         self.error = error
-        self.reads: list[str | None] = []  # watermark passed to each read
+        self.reads: list[tuple] = []  # (watermark, window) passed to each read
 
     def fingerprint(self, ingestion):
         return self._fingerprint
 
-    def read(self, ingestion, watermark):
-        self.reads.append(watermark)
+    def read(self, ingestion, watermark, window):
+        self.reads.append((watermark, window))
         if self.error:
             raise self.error
         return ReadResult(list(self.rows), len(self.rows), self.watermark)

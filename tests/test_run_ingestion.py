@@ -9,6 +9,7 @@ from fakes.ingestion import FakeIngestionCatalog, FakeRawWriter, FakeReader, Fak
 from medallion.controller.config import Ingestion
 from medallion.controller.runtime import IngestionState
 from medallion.ingestion.run import run_ingestion
+from medallion.ingestion.window import DateWindow
 
 NOW = datetime(2026, 10, 3, 9, 0, tzinfo=timezone.utc)
 RUN_ID, TASK_RUN_ID = 823902144008677, 911111111111
@@ -98,7 +99,7 @@ def test_watermark_from_the_read_advances_when_the_source_has_no_fingerprint():
 
     run = h.run()
 
-    assert reader.reads == ["2026-10-01T00:00:00"]
+    assert reader.reads == [("2026-10-01T00:00:00", None)]
     assert run.watermark_after == h.state.watermark == "2026-10-02T23:00:00"
 
 
@@ -177,4 +178,90 @@ def test_source_type_without_reader_fails():
         run_ingestion("orders", RUN_ID, TASK_RUN_ID, catalog=h.catalog, readers={"csv": h.reader},
                       writer=h.writer, run_log=h.log, clock=FixedClock(NOW))
 
+    assert h.log.runs[0].status == "failed"
+
+
+# ── API window ───────────────────────────────────────────────────────────────
+
+WEATHER = Ingestion.model_validate({
+    "name": "weather_sao_paulo", "source_system": "weather", "raw_table": "sao_paulo",
+    "active": True, "source": {
+        "type": "api", "url": "https://archive.example/v1", "data_key": "hourly",
+        "window": {"start_param": "start_date", "end_param": "end_date",
+                   "start_date": "2026-01-01", "lag_days": 5}}})
+# NOW is 2026-10-03, so with a 5-day lag every window ends on 2026-09-28.
+
+
+def api_harness(watermark=None, rows=ROWS):
+    states = [previous_state("weather_sao_paulo", watermark)] if watermark else []
+    return Harness(WEATHER, states, reader=FakeReader(rows))
+
+
+def test_without_watermark_the_window_starts_at_the_declared_start_date():
+    h = api_harness()
+
+    run = h.run()
+
+    assert h.reader.reads == [(None, DateWindow(date(2026, 1, 1), date(2026, 9, 28)))]
+    assert (run.status, run.watermark_before, run.watermark_after) == (
+        "success", None, "2026-09-28")
+    assert h.state.watermark == "2026-09-28"
+
+
+def test_window_starts_the_day_after_the_watermark():
+    h = api_harness(watermark="2026-09-20")
+
+    h.run()
+
+    assert h.reader.reads == [("2026-09-20", DateWindow(date(2026, 9, 21), date(2026, 9, 28)))]
+
+
+def test_window_of_one_day():
+    h = api_harness(watermark="2026-09-27")
+
+    run = h.run()
+
+    assert h.reader.reads[0][1] == DateWindow(date(2026, 9, 28), date(2026, 9, 28))
+    assert run.watermark_after == "2026-09-28"
+
+
+def test_up_to_date_window_succeeds_without_calling_the_source():
+    h = api_harness(watermark="2026-09-28")
+    before = h.state
+
+    run = h.run()
+
+    assert h.reader.reads == []
+    assert h.writer.tables == {}
+    assert h.state == before
+    assert (run.status, run.watermark_after, run.error) == ("skipped", "2026-09-28", None)
+
+
+def test_window_with_no_rows_still_advances_the_watermark():
+    h = api_harness(watermark="2026-09-20", rows=[])
+
+    run = h.run()
+
+    assert h.writer.tables == {}
+    assert run.watermark_after == h.state.watermark == "2026-09-28"
+
+
+def test_api_without_window_is_read_as_a_snapshot():
+    snapshot = Ingestion.model_validate({**WEATHER.model_dump(by_alias=True), "source": {
+        "type": "api", "url": "https://api.example/v1"}})
+    h = Harness(snapshot, reader=FakeReader(ROWS))
+
+    run = h.run()
+
+    assert h.reader.reads == [(None, None)]
+    assert (run.status, run.watermark_after) == ("success", None)
+
+
+def test_invalid_watermark_fails_without_calling_the_source():
+    h = api_harness(watermark="not-a-date")
+
+    with pytest.raises(ValueError):
+        h.run()
+
+    assert h.reader.reads == []
     assert h.log.runs[0].status == "failed"
