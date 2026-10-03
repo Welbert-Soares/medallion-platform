@@ -50,3 +50,9 @@ def test_failed_ingestion_fails_the_run_through_a_leaf_task():
     assert "run_if" not in leaf
     assert not [t for t in TASKS.values() if "ingestions_succeeded" in
                 [d["task_key"] for d in t.get("depends_on", [])]]
+
+
+def test_job_runs_daily_at_six_in_sao_paulo():
+    assert JOB["schedule"] == {"quartz_cron_expression": "0 0 6 * * ?",
+                               "timezone_id": "America/Sao_Paulo", "pause_status": "UNPAUSED"}
+    assert JOB["max_concurrent_runs"] == 1

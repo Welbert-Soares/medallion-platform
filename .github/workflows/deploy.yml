@@ -10,9 +10,8 @@ jobs:
     environment: prod
 
     env:
-      DATABRICKS_HOST:    ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_TOKEN:   ${{ secrets.DATABRICKS_TOKEN }}
-      DATABRICKS_REPO_ID: ${{ secrets.DATABRICKS_REPO_ID }}
+      DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -26,121 +25,26 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
           restore-keys: ${{ runner.os }}-pip-
 
-      - name: Install dependencies
-        run: pip install databricks-sdk ".[databricks]"
+      - name: Install medallion
+        run: pip install ".[databricks]"
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
 
       - name: Check secrets
         run: |
-          if [ -z "$DATABRICKS_HOST" ];    then echo "ERRO: secret DATABRICKS_HOST não configurado";    exit 1; fi
-          if [ -z "$DATABRICKS_TOKEN" ];   then echo "ERRO: secret DATABRICKS_TOKEN não configurado";   exit 1; fi
-          if [ -z "$DATABRICKS_REPO_ID" ]; then echo "ERRO: secret DATABRICKS_REPO_ID não configurado"; exit 1; fi
+          if [ -z "$DATABRICKS_HOST" ];  then echo "ERRO: secret DATABRICKS_HOST não configurado";  exit 1; fi
+          if [ -z "$DATABRICKS_TOKEN" ]; then echo "ERRO: secret DATABRICKS_TOKEN não configurado"; exit 1; fi
           echo "Secrets OK — host: $DATABRICKS_HOST"
-
-      - name: Configure Databricks CLI auth
-        run: databricks configure --host "$DATABRICKS_HOST" --token "$DATABRICKS_TOKEN"
 
       - name: Apply Catalog Structure (creates, grants, revokes; never drops)
         run: medallion-catalog-structure config/platform --apply
 
       - name: Ensure secret scopes of declared Connections (values are put by hand)
         run: medallion-secret-scopes config/platform
-
-      - name: Update Databricks Repo (pull latest main)
-        run: databricks repos update "$DATABRICKS_REPO_ID" --branch main
-
-      - name: Ensure schemas, tables and volumes exist
-        run: |
-          python3 - << 'EOF'
-          import os, time
-          from databricks.sdk import WorkspaceClient
-          from databricks.sdk.service.sql import StatementState
-
-          WAREHOUSE_ID = "12ca72db06431bb2"
-
-          ddl_statements = [
-              # Schemas de controle e landing (catálogos criados manualmente)
-              "CREATE SCHEMA IF NOT EXISTS medallion_controller.delta_controller COMMENT 'Control tables for the metadata-driven ingestion pipeline'",
-              "CREATE SCHEMA IF NOT EXISTS medallion_raw.weather                 COMMENT 'Landing zone — weather data as-is from sources'",
-              "CREATE SCHEMA IF NOT EXISTS medallion_raw.ibge                    COMMENT 'Landing zone — IBGE data as-is from sources'",
-              "CREATE SCHEMA IF NOT EXISTS medallion_raw.orders                  COMMENT 'Landing zone — orders data as-is from sources'",
-              "CREATE SCHEMA IF NOT EXISTS medallion_raw.sources                 COMMENT 'Static source files for ingestion'",
-              # Schemas do medallion
-              "CREATE SCHEMA IF NOT EXISTS medallion_bronze.weather COMMENT 'Bronze — standardized weather data'",
-              "CREATE SCHEMA IF NOT EXISTS medallion_bronze.ibge    COMMENT 'Bronze — standardized IBGE data'",
-              "CREATE SCHEMA IF NOT EXISTS medallion_silver.weather COMMENT 'Silver — cleaned and typed weather data'",
-              "CREATE SCHEMA IF NOT EXISTS medallion_silver.ibge    COMMENT 'Silver — cleaned and typed IBGE data'",
-              "CREATE SCHEMA IF NOT EXISTS medallion_gold.weather   COMMENT 'Gold — weather KPIs and aggregations'",
-              # Tabelas de controle
-              """CREATE TABLE IF NOT EXISTS medallion_controller.delta_controller.ingestions (
-                ingestion_name        STRING  NOT NULL,
-                source_name           STRING  NOT NULL,
-                source_type           STRING  NOT NULL,
-                source_connection_id  STRING,
-                source_schema         STRING,
-                target_container      STRING  NOT NULL,
-                target_schema         STRING  NOT NULL,
-                table_name_target     STRING  NOT NULL,
-                table_description     STRING,
-                table_type_load       STRING  NOT NULL,
-                table_merge_columns   STRING,
-                table_active          BOOLEAN NOT NULL,
-                table_params_flag_distinct    BOOLEAN,
-                table_params_flag_hash_row    BOOLEAN,
-                table_params_flag_data_factory BOOLEAN,
-                table_url_link              STRING,
-                table_url_mode              STRING,
-                table_url_params            STRING,
-                table_url_flatten_method    STRING,
-                table_url_data_key          STRING,
-                table_url_watermark_column  STRING,
-                table_url_last_watermark    TIMESTAMP,
-                table_csv_path              STRING,
-                table_csv_delimiter         STRING,
-                table_csv_header            BOOLEAN,
-                table_sql_query             STRING,
-                table_sql_filter            STRING,
-                table_sql_watermark_column  STRING,
-                table_sql_last_watermark    TIMESTAMP,
-                table_sql_partition_column  STRING,
-                sync_at               TIMESTAMP,
-                CONSTRAINT pk_ingestion_name PRIMARY KEY (ingestion_name)
-              ) USING DELTA COMMENT 'Central catalog of ingestion pipeline configurations'""",
-              """CREATE TABLE IF NOT EXISTS medallion_controller.delta_controller.execution_log (
-                log_id         STRING,
-                ingestion_name STRING    NOT NULL,
-                execution_id   STRING,
-                started_at     TIMESTAMP NOT NULL,
-                finished_at    TIMESTAMP NOT NULL,
-                status         STRING    NOT NULL,
-                rows_read      LONG,
-                rows_written   LONG,
-                error_message  STRING
-              ) USING DELTA COMMENT 'Execution log for all ingestion pipeline runs'""",
-              "CREATE VOLUME IF NOT EXISTS medallion_raw.sources.files COMMENT 'Static source files (CSV, JSON) for ingestion'",
-          ]
-
-          w = WorkspaceClient()
-          for stmt in ddl_statements:
-              label = stmt.strip().splitlines()[0][:80]
-              result = w.statement_execution.execute_statement(
-                  statement=stmt,
-                  warehouse_id=WAREHOUSE_ID,
-              )
-              while result.status.state in (StatementState.PENDING, StatementState.RUNNING):
-                  time.sleep(2)
-                  result = w.statement_execution.get_statement(result.statement_id)
-              if result.status.state != StatementState.SUCCEEDED:
-                  raise RuntimeError(f"DDL falhou [{result.status.state}]: {label}")
-              print(f"OK: {label}")
-
-          print("Infraestrutura verificada e atualizada.")
-          EOF
 
       - name: Upload CSV sources to Unity Catalog Volume
         run: |
@@ -157,31 +61,5 @@ jobs:
           print("CSV uploaded to /Volumes/medallion_raw/sources/files/")
           EOF
 
-      - name: Upsert job definition
-        run: |
-          python3 - << 'EOF'
-          import json
-          from databricks.sdk import WorkspaceClient
-          from databricks.sdk.service.jobs import JobSettings
-
-          w = WorkspaceClient()
-
-          with open("databricks/workflows/main_workflow.json") as f:
-              settings = JobSettings.from_dict(json.load(f))
-
-          existing = next(
-              (j for j in w.jobs.list() if j.settings.name == settings.name),
-              None,
-          )
-
-          if existing:
-              w.jobs.reset(job_id=existing.job_id, new_settings=settings)
-              job_id = existing.job_id
-              print(f"Job atualizado: {job_id}")
-          else:
-              job_id = w.jobs.create(**settings.as_dict()).job_id
-              print(f"Job criado: {job_id}")
-          EOF
-
-      - name: Deploy bundle (medallion wheel + job, no Run)
+      - name: Deploy bundle (medallion wheel + scheduled job, no Run)
         run: databricks bundle deploy --target prod

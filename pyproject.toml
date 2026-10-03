@@ -19,6 +19,7 @@ databricks = [
 ]
 dev = [
     "databricks-sdk>=0.60",
+    "dbt-databricks>=1.10,<2.0",
     "pytest",
     "pyspark>=4.0",
     "ruff==0.16.10",

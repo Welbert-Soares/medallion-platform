@@ -1,8 +1,0 @@
-extend = "../../ruff.toml"
-
-# Globals injected by the Databricks notebook runtime.
-builtins = ["spark", "dbutils", "display"]
-
-[lint.per-file-ignores]
-# Notebook cells import after widgets and sys.path setup.
-"**" = ["E402", "TID251"]
