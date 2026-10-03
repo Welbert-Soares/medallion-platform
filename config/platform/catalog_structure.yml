@@ -1,5 +1,7 @@
 # Catalog Structure: everything that exists in Unity Catalog for the platform.
-# Catalogs are created by hand; schemas, volumes, comments, tags and grants are managed from here.
+# Applied by `medallion-catalog-structure` (dry-run by default, `--apply` on deploy). ADR 0004:
+# undeclared grants on managed catalogs/schemas are revoked; nothing is ever dropped (orphans are reported).
+# Owners are implicit and never declared.
 # Every Source System becomes a schema in every Layer: {layer catalog}.{source system}.{table}.
 
 layers:
@@ -18,16 +20,28 @@ layers:
   - name: bronze
     catalog: medallion_bronze
     comment: "Bronze — standardized and typed"
+    grants:
+      - principal: account users
+        privileges: [BROWSE]
   - name: silver
     catalog: medallion_silver
     comment: "Silver — cleaned, deduplicated, business-typed"
+    grants:
+      - principal: account users
+        privileges: [BROWSE]
   - name: gold
     catalog: medallion_gold
     comment: "Gold — KPIs and analytics-ready models"
+    grants:
+      - principal: account users
+        privileges: [BROWSE]
 
 controller:
   catalog: medallion_controller
   comment: "Controller — config, Ingestion State and execution log"
+  grants:
+    - principal: account users
+      privileges: [BROWSE]
   schema:
     name: controller
     comment: "Controller tables: ingestions, connections, ingestion_state, execution_log"

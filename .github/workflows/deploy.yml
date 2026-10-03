@@ -26,11 +26,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
           restore-keys: ${{ runner.os }}-pip-
 
       - name: Install dependencies
-        run: pip install databricks-sdk
+        run: pip install databricks-sdk ".[databricks]"
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
@@ -44,6 +44,9 @@ jobs:
 
       - name: Configure Databricks CLI auth
         run: databricks configure --host "$DATABRICKS_HOST" --token "$DATABRICKS_TOKEN"
+
+      - name: Apply Catalog Structure (creates, grants, revokes; never drops)
+        run: medallion-catalog-structure config/platform --apply
 
       - name: Update Databricks Repo (pull latest main)
         run: databricks repos update "$DATABRICKS_REPO_ID" --branch main

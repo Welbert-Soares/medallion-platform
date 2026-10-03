@@ -13,7 +13,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Only for the CLI entry points run outside Databricks (serverless ships the SDK).
+databricks = [
+    "databricks-sdk>=0.60",
+]
 dev = [
+    "databricks-sdk>=0.60",
     "pytest",
     "pyspark>=4.0",
     "ruff==0.16.10",
@@ -22,6 +27,7 @@ dev = [
 [project.scripts]
 medallion-smoke = "medallion.smoke:main"
 medallion-validate-config = "medallion.controller.config.validate:main"
+medallion-catalog-structure = "medallion.databricks.catalog_structure_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/medallion"]
