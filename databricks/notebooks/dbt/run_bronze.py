@@ -11,7 +11,10 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
-import subprocess, os, shutil, sys
+import subprocess
+import os
+import shutil
+import sys
 
 DBT_CMD = os.path.join(os.path.dirname(sys.executable), "dbt")
 
@@ -89,6 +92,6 @@ for project in BRONZE_PROJECTS:
         )
 
 if errors:
-    raise Exception(f"dbt bronze failed:\n" + "\n".join(errors))
+    raise Exception("dbt bronze failed:\n" + "\n".join(errors))
 
 print("\ndbt bronze — all projects done.")
