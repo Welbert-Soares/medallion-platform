@@ -7,7 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: teste
+    environment: prod
 
     env:
       DATABRICKS_HOST:    ${{ secrets.DATABRICKS_HOST }}
@@ -154,7 +154,7 @@ jobs:
       - name: Upsert job definition
         run: |
           python3 - << 'EOF'
-          import json, os
+          import json
           from databricks.sdk import WorkspaceClient
           from databricks.sdk.service.jobs import JobSettings
 
@@ -175,12 +175,4 @@ jobs:
           else:
               job_id = w.jobs.create(**settings.as_dict()).job_id
               print(f"Job criado: {job_id}")
-
-          with open(os.environ["GITHUB_ENV"], "a") as f:
-              f.write(f"DATABRICKS_JOB_ID={job_id}\n")
           EOF
-
-      - name: Trigger pipeline run
-        run: |
-          databricks jobs run-now "$DATABRICKS_JOB_ID"
-          echo "Pipeline acionado → $DATABRICKS_HOST/#job/$DATABRICKS_JOB_ID"
