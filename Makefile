@@ -1,20 +1,29 @@
-.PHONY: setup compile test docs clean
+# Day-to-day commands. Databricks credentials (DATABRICKS_HOST, DATABRICKS_TOKEN) come from .env.
+-include .env
+export
 
-setup:
-	pip install -r requirements.txt
-	@if [ ! -f ~/.dbt/profiles.yml ]; then \
-	  cp dbt/profiles.yml.example ~/.dbt/profiles.yml; \
-	  echo "Edit ~/.dbt/profiles.yml with your Databricks credentials"; \
-	fi
+PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+CONFIG ?= config/platform
 
-compile:
-	cd dbt && dbt compile
+.PHONY: install lint test validate plan deploy
 
-test:
-	cd dbt && dbt compile && dbt test
+install:  ## dev environment: package + pytest, ruff, pyspark, dbt, databricks-sdk
+	$(PYTHON) -m pip install -e ".[dev]"
 
-docs:
-	cd dbt && dbt docs generate && dbt docs serve
+lint:  ## ruff, including the ADR 0005 import boundaries
+	$(PYTHON) -m ruff check src/ tests/
 
-clean:
-	cd dbt && dbt clean
+test:  ## pytest (no Spark cluster or JVM needed)
+	$(PYTHON) -m pytest
+
+validate:  ## config (load_config) + bundle definition
+	$(PYTHON) -m medallion.controller.config.validate $(CONFIG)
+	databricks bundle validate --target prod
+
+plan:  ## Catalog Structure dry-run against the workspace: prints the diff, changes nothing
+	$(PYTHON) -m medallion.databricks.catalog_structure_cli $(CONFIG)
+
+deploy:  ## what the merge to main does, minus the CSV upload: apply, secret scopes, bundle (no Run)
+	$(PYTHON) -m medallion.databricks.catalog_structure_cli $(CONFIG) --apply
+	$(PYTHON) -m medallion.databricks.secret_scopes_cli $(CONFIG)
+	databricks bundle deploy --target prod
