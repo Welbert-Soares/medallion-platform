@@ -9,6 +9,11 @@ artifacts:
     # Unique wheel version per deploy, so serverless never reuses a cached wheel.
     dynamic_version: true
 
+variables:
+  warehouse_id:
+    description: SQL warehouse the dbt tasks run on
+    default: 12ca72db06431bb2
+
 targets:
   prod:
     default: true
@@ -51,9 +56,80 @@ resources:
                   - "{{job.run_id}}"
                   - "--task-run-id"
                   - "{{task.run_id}}"
+
+        # Leaf check: a Run's result comes from its leaf tasks, so without this a failed
+        # Ingestion would be hidden by dbt tasks that still succeed (they run with ALL_DONE).
+        - task_key: ingestions_succeeded
+          depends_on:
+            - task_key: ingest
+          condition_task:
+            op: EQUAL_TO
+            left: "ok"
+            right: "ok"
+
+        # dbt: one task per project, bronze → silver → gold per Source System. Bronze runs
+        # even if some Ingestion failed; a failure in one Source System never blocks another.
+        - task_key: dbt_bronze_ibge
+          depends_on:
+            - task_key: ingest
+          run_if: ALL_DONE
+          environment_key: dbt
+          dbt_task:
+            project_directory: ./dbt/bronze_ibge
+            commands: ["dbt deps", "dbt build"]
+            warehouse_id: ${var.warehouse_id}
+            catalog: medallion_bronze
+            schema: ibge
+        - task_key: dbt_silver_ibge
+          depends_on:
+            - task_key: dbt_bronze_ibge
+          environment_key: dbt
+          dbt_task:
+            project_directory: ./dbt/silver_ibge
+            commands: ["dbt deps", "dbt build"]
+            warehouse_id: ${var.warehouse_id}
+            catalog: medallion_silver
+            schema: ibge
+        - task_key: dbt_bronze_weather
+          depends_on:
+            - task_key: ingest
+          run_if: ALL_DONE
+          environment_key: dbt
+          dbt_task:
+            project_directory: ./dbt/bronze_weather
+            commands: ["dbt deps", "dbt build"]
+            warehouse_id: ${var.warehouse_id}
+            catalog: medallion_bronze
+            schema: weather
+        - task_key: dbt_silver_weather
+          depends_on:
+            - task_key: dbt_bronze_weather
+          environment_key: dbt
+          dbt_task:
+            project_directory: ./dbt/silver_weather
+            commands: ["dbt deps", "dbt build"]
+            warehouse_id: ${var.warehouse_id}
+            catalog: medallion_silver
+            schema: weather
+        - task_key: dbt_gold_weather
+          depends_on:
+            - task_key: dbt_silver_weather
+          environment_key: dbt
+          dbt_task:
+            project_directory: ./dbt/gold_weather
+            commands: ["dbt deps", "dbt build"]
+            warehouse_id: ${var.warehouse_id}
+            catalog: medallion_gold
+            schema: weather
+
       environments:
         - environment_key: medallion
           spec:
             environment_version: "4"
             dependencies:
               - ./dist/*.whl
+        - environment_key: dbt
+          spec:
+            environment_version: "4"
+            dependencies:
+              - dbt-databricks>=1.10,<2.0
