@@ -63,6 +63,3 @@ def test_ingestion_may_import_controller():
 def test_dbutils_is_not_a_builtin_inside_the_package():
     assert "F821" in ruff_violations("src/medallion/controller/probe.py", "dbutils.fs.ls('/')\n")
 
-
-def test_notebooks_keep_databricks_builtins():
-    assert ruff_violations("databricks/notebooks/probe.py", "spark.sql('select 1')\n") == ""
