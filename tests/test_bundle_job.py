@@ -21,8 +21,18 @@ def test_every_dbt_project_has_a_native_dbt_task():
     assert sorted(dbt_tasks) == [f"dbt_{p}" for p in DBT_PROJECTS]
     for key, task in dbt_tasks.items():
         project = key.removeprefix("dbt_")
-        assert task["dbt_task"]["project_directory"] == f"./dbt/{project}"
+        # The whole dbt/ folder, so the shared ../utils package is copied along with the project.
+        assert task["dbt_task"]["project_directory"] == "./dbt"
+        assert task["dbt_task"]["commands"] == [
+            f"dbt deps --project-dir {project}",
+            f"dbt build --project-dir {project} --profile medallion"]
         assert task["dbt_task"]["warehouse_id"] == "${var.warehouse_id}"
+
+
+def test_root_dbt_project_names_the_generated_profile():
+    root = yaml.safe_load((REPO_ROOT / "dbt" / "dbt_project.yml").read_text())
+
+    assert root["profile"] == "medallion"
 
 
 def test_bronze_runs_after_ingestions_even_when_one_failed():
