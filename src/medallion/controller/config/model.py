@@ -161,7 +161,7 @@ class CsvSource(_Model):
 
 class _JdbcRead(_Model):
     connection_id: Identifier
-    filter: str | None = None
+    filter: str | None = None  # SQL condition, without WHERE
     watermark_column: str | None = None
     partition_column: str | None = None
 
