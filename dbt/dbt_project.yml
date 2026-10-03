@@ -1,0 +1,7 @@
+# Not a dbt project to run: it only names the profile Databricks generates for the job's dbt tasks.
+# Each dbt_task copies the whole dbt/ folder (so the shared ../utils package travels with it), runs
+# with --project-dir <project>, and reads the generated profile's name from this file. Every
+# command that connects passes --profile medallion.
+name: 'medallion'
+version: '1.0.0'
+profile: 'medallion'

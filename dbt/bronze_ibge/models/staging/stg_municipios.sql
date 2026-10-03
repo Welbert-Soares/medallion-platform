@@ -6,7 +6,7 @@ select
     cast(latitude  as decimal(9,6))    as latitude,
     cast(longitude as decimal(9,6))    as longitude,
     _ingested_at,
-    _ingestion_name
+    _run_id
 from {{ source('ibge', 'municipios') }}
 where codigo_ibge is not null
 -- Raw is append-only (ADR 0002): keep the latest load of each municipality.
