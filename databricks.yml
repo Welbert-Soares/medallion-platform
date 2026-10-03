@@ -1,0 +1,35 @@
+bundle:
+  name: medallion
+
+artifacts:
+  medallion:
+    type: whl
+    build: python3 -m pip wheel --no-deps --wheel-dir dist .
+    path: .
+    # Unique wheel version per deploy, so serverless never reuses a cached wheel.
+    dynamic_version: true
+
+targets:
+  prod:
+    default: true
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+
+resources:
+  jobs:
+    medallion:
+      name: medallion
+      description: Medallion platform (bundle-managed). Not scheduled yet.
+      tasks:
+        - task_key: smoke
+          environment_key: medallion
+          python_wheel_task:
+            package_name: medallion
+            entry_point: medallion-smoke
+      environments:
+        - environment_key: medallion
+          spec:
+            environment_version: "4"
+            dependencies:
+              - ./dist/*.whl

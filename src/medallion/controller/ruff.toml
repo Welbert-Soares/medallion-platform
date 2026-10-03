@@ -1,0 +1,9 @@
+extend = "../../../ruff.toml"
+
+# ADR 0005: the Controller never imports Ingestion.
+# A nested banned-api table replaces the root one, so the root bans are repeated here.
+[lint.flake8-tidy-imports.banned-api]
+"pyspark".msg = "Only medallion.databricks may import pyspark (ADR 0005)"
+"databricks".msg = "Only medallion.databricks may import databricks libraries (ADR 0005)"
+"delta".msg = "Only medallion.databricks may import delta (ADR 0005)"
+"medallion.ingestion".msg = "medallion.controller must not import medallion.ingestion (ADR 0005)"

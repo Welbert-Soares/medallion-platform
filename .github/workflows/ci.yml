@@ -20,14 +20,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
           restore-keys: ${{ runner.os }}-pip-
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt -e ".[dev]"
 
-      - name: Lint Python (notebooks + utils)
-        run: ruff check databricks/notebooks/ config/utils/ scripts/
+      - name: Lint Python (package, tests, notebooks, utils)
+        run: ruff check src/ tests/ databricks/notebooks/ config/utils/ scripts/
+
+      - name: Unit tests
+        run: pytest
+
+      - name: Build medallion wheel
+        run: pip wheel --no-deps --wheel-dir dist .
 
       - name: Validate config YAMLs
         run: python scripts/validate_configs.py
@@ -59,3 +65,20 @@ jobs:
             dbt parse --profiles-dir ~/.dbt --no-use-colors
             cd ../..
           done
+
+  bundle:
+    runs-on: ubuntu-latest
+    environment: prod
+
+    env:
+      DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Validate bundle
+        run: databricks bundle validate --target prod
