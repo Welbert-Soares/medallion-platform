@@ -1,0 +1,18 @@
+source_system: weather
+
+ingestions:
+  - name: weather_sao_paulo
+    raw_table: sao_paulo
+    description: "Temperatura e precipitação horária de São Paulo — Open Meteo API (sem autenticação)"
+    active: true
+    source:
+      type: api
+      url: "https://api.open-meteo.com/v1/forecast"
+      params:
+        latitude: -23.5505
+        longitude: -46.6333
+        hourly: "temperature_2m,precipitation"
+        forecast_days: 1
+        timezone: "America/Sao_Paulo"
+      flatten_method: zip_arrays
+      data_key: hourly

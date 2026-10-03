@@ -38,6 +38,9 @@ jobs:
       - name: Validate config YAMLs
         run: python scripts/validate_configs.py
 
+      - name: Validate platform config (load_config)
+        run: medallion-validate-config config/platform
+
       - name: Configure dbt profile
         run: |
           mkdir -p ~/.dbt

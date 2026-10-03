@@ -1,0 +1,14 @@
+# Connections of sql/table Ingestions. Only the address and the secret reference live here;
+# the password is read from the secret scope at run time and never stored in YAML, tables or Git.
+
+connections:
+  - id: sql_orders_postgres
+    description: "PostgreSQL de demonstração — pedidos de e-commerce"
+    subprotocol: postgresql
+    driver: org.postgresql.Driver
+    host: localhost
+    port: 5432
+    database: demo_orders
+    user: postgres
+    secret_scope: medallion-platform
+    secret_key: postgres_password

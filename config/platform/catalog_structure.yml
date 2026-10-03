@@ -1,0 +1,41 @@
+# Catalog Structure: everything that exists in Unity Catalog for the platform.
+# Catalogs are created by hand; schemas, volumes, comments, tags and grants are managed from here.
+# Every Source System becomes a schema in every Layer: {layer catalog}.{source system}.{table}.
+
+layers:
+  - name: raw
+    catalog: medallion_raw
+    comment: "Landing zone — data as-is from sources"
+    grants:
+      - principal: account users
+        privileges: [BROWSE]
+    schemas:
+      - name: sources
+        comment: "Static source files for ingestion"
+        volumes:
+          - name: files
+            comment: "Static source files (CSV, JSON) for ingestion"
+  - name: bronze
+    catalog: medallion_bronze
+    comment: "Bronze — standardized and typed"
+  - name: silver
+    catalog: medallion_silver
+    comment: "Silver — cleaned, deduplicated, business-typed"
+  - name: gold
+    catalog: medallion_gold
+    comment: "Gold — KPIs and analytics-ready models"
+
+controller:
+  catalog: medallion_controller
+  comment: "Controller — config, Ingestion State and execution log"
+  schema:
+    name: controller
+    comment: "Controller tables: ingestions, connections, ingestion_state, execution_log"
+
+source_systems:
+  - name: weather
+    comment: "Weather data — Open Meteo"
+  - name: ibge
+    comment: "IBGE geographic reference data"
+  - name: orders
+    comment: "Orders — demo PostgreSQL"

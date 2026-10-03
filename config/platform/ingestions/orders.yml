@@ -1,0 +1,12 @@
+source_system: orders
+
+ingestions:
+  - name: orders_postgres
+    raw_table: orders
+    description: "Pedidos do PostgreSQL de demonstração — requer Docker (ver README)"
+    active: false
+    source:
+      type: sql
+      connection_id: sql_orders_postgres
+      query: "SELECT * FROM orders WHERE updated_at > ?"
+      watermark_column: updated_at
