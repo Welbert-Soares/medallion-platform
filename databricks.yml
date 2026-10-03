@@ -22,11 +22,13 @@ resources:
       name: medallion
       description: Medallion platform (bundle-managed). Not scheduled yet.
       tasks:
-        - task_key: smoke
+        - task_key: sync_config
           environment_key: medallion
           python_wheel_task:
             package_name: medallion
-            entry_point: medallion-smoke
+            entry_point: medallion-sync-config
+            # The bundle syncs config/platform with the code, so a Run always uses the deployed config.
+            parameters: ["--config-dir", "${workspace.file_path}/config/platform"]
       environments:
         - environment_key: medallion
           spec:
