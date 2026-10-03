@@ -9,3 +9,5 @@ select
     _ingestion_name
 from {{ source('ibge', 'municipios') }}
 where codigo_ibge is not null
+-- Raw is append-only (ADR 0002): keep the latest load of each municipality.
+qualify row_number() over (partition by codigo_ibge order by _ingested_at desc) = 1

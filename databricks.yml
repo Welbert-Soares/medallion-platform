@@ -29,6 +29,28 @@ resources:
             entry_point: medallion-sync-config
             # The bundle syncs config/platform with the code, so a Run always uses the deployed config.
             parameters: ["--config-dir", "${workspace.file_path}/config/platform"]
+        - task_key: ingest
+          depends_on:
+            - task_key: sync_config
+          for_each_task:
+            # Active Ingestions published by sync_config; each one is an independent iteration.
+            inputs: "{{tasks.sync_config.values.active_ingestions}}"
+            concurrency: 4
+            task:
+              task_key: ingest_iteration
+              environment_key: medallion
+              python_wheel_task:
+                package_name: medallion
+                entry_point: medallion-run-ingestion
+                parameters:
+                  - "--config-dir"
+                  - "${workspace.file_path}/config/platform"
+                  - "--ingestion"
+                  - "{{input}}"
+                  - "--run-id"
+                  - "{{job.run_id}}"
+                  - "--task-run-id"
+                  - "{{task.run_id}}"
       environments:
         - environment_key: medallion
           spec:
