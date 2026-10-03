@@ -1,0 +1,12 @@
+source_system: ibge
+
+ingestions:
+  - name: ibge_municipios
+    raw_table: municipios
+    description: "Municípios brasileiros — referência geográfica IBGE (32 capitais estaduais + amostra)"
+    active: true
+    source:
+      type: csv
+      path: "/Volumes/medallion_raw/sources/files/ibge_municipios.csv"
+      delimiter: ";"
+      header: true
