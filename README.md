@@ -1,118 +1,51 @@
 # Medallion Platform
 
-Metadata-driven Medallion pipeline on Databricks. Add a new data source by creating a YAML file — no Python required.
+Metadata-driven data platform on Databricks. Source Systems declared in YAML are ingested as-is into
+an append-only **raw** Layer and refined by dbt through **bronze → silver → gold**, one Unity Catalog
+catalog per Layer (`medallion_raw`, `medallion_bronze`, …).
 
-## Architecture
+The platform is split in two (ADR 0005):
+
+- **Controller** declares, configures and records: config, Catalog Structure (catalogs, schemas,
+  volumes, grants), Ingestion State and the execution log, in `medallion_controller`.
+- **Medallion** moves and refines data: Ingestions into Raw, then the dbt projects.
+
+Vocabulary lives in [`CONTEXT.md`](CONTEXT.md); architectural decisions in [`docs/adr/`](docs/adr/).
+
+## How it runs
+
+One Databricks job, defined in [`databricks.yml`](databricks.yml) and deployed as an Asset Bundle with
+the `medallion` wheel, runs daily at 06:00 America/Sao_Paulo:
 
 ```
-config/controller/*.yml            ← source of truth (Git-versioned)
-         ↓  sync_config notebook
-cli_catalog.controller.ingestions  ← runtime config (Delta table)
-         ↓  controller notebook (parallel tasks)
-generic_ingestion notebook         ← Bronze: raw data per source
-         ↓  dbt Core
-cli_catalog.silver.*               ← cleaned, typed, deduplicated
-         ↓  dbt Core
-cli_catalog.gold.*                 ← KPIs and analytics-ready models
+sync_config ─► ingest (for-each over active Ingestions) ─┬─► dbt bronze_ibge ─► silver_ibge
+                                                          ├─► dbt bronze_weather ─► silver_weather ─► gold_weather
+                                                          └─► ingestions_succeeded
 ```
 
-**Daily job** (`medallion-platform-controller`): `sync_config → ingest_bronze → dbt_silver → dbt_gold`, scheduled 06:00 BRT.
+Merging to `main` applies the Catalog Structure, ensures secret scopes, uploads source files and
+deploys the bundle. It never triggers a Run.
 
-## First-time setup
+## Adding a source
 
-1. Run the `00_create_tables` notebook in Databricks once to create schemas, tables, and the CSV Volume.
-2. Add the GitHub Secrets below to your fork.
-3. Push to `main` — GitHub Actions deploys and runs the pipeline.
+1. Declare the Source System in [`config/platform/catalog_structure.yml`](config/platform/catalog_structure.yml)
+   (it becomes a schema in every Layer).
+2. Add its Ingestions to `config/platform/ingestions/<source_system>.yml`; each lands in
+   `medallion_raw.<source_system>.<raw_table>`.
+3. For databases, declare a Connection and put its password by hand: see
+   [`docs/connections.md`](docs/connections.md).
+4. Add dbt projects `dbt/bronze_<system>`, `dbt/silver_<system>`, … and their tasks in `databricks.yml`.
 
-## Local development
+## Development
 
 ```bash
-make setup      # pip install + copy dbt profiles template
-make compile    # dbt compile — validates SQL without executing
-make test       # dbt compile + dbt test (requires live Databricks connection)
-make docs       # dbt docs generate + serve
-make clean      # dbt clean
+make install    # dev environment
+make lint       # ruff, including import boundaries
+make test       # pytest, no Spark cluster needed
+make validate   # config + bundle definition
+make plan       # Catalog Structure diff against the workspace (dry-run)
+make deploy     # apply + bundle deploy from your machine (CI does this on merge)
 ```
 
-Lint: `ruff check databricks/notebooks/ config/utils/ scripts/`
-
-Validate YAML configs: `python scripts/validate_configs.py`
-
-## Adding a new source
-
-Create `config/controller/<source>.yml`. The next deploy syncs it to the Delta table automatically.
-
-```yaml
-ingestions:
-  - name: my_source
-    source:
-      type: api          # api | csv | sql
-    target:
-      container: bronze
-      schema: bronze
-    tables:
-      - name: my_table_ingestion
-        name_target: my_table_raw
-        type_load: append  # append | overwrite | merge | replace_where
-        active: true
-        url:
-          link: "https://api.example.com/data"
-          mode: fixed      # fixed | template_range | query_params
-```
-
-See `config/controller/weather.yml` (API) and `config/controller/ibge.yml` (CSV) for complete examples.
-
-## Deploy (GitHub Actions)
-
-Push to `main` → `deploy.yml` runs automatically:
-
-1. Pulls latest code into the Databricks Repo
-2. Uploads CSV sources to `cli_catalog.bronze.sources` Volume
-3. Upserts the `medallion-platform-controller` job from `databricks/workflows/main_workflow.json`
-4. Triggers a pipeline run
-
-### Required GitHub Secrets
-
-| Secret | Description |
-|---|---|
-| `DATABRICKS_HOST` | Workspace URL, e.g. `https://dbc-xxxx.cloud.databricks.com` |
-| `DATABRICKS_TOKEN` | Personal Access Token or Service Principal token |
-| `DATABRICKS_REPO_ID` | Numeric ID of the Databricks Repo (Repos UI → kebab menu → Copy ID) |
-
-## Emergency deploy (skip CI)
-
-```bash
-# Push to GitHub first, then sync the Repo immediately:
-git push && ./scripts/import_notebooks.sh --sync-only
-
-# For mid-debug iteration (uploads local file directly, then push):
-./scripts/import_notebooks.sh
-git push
-```
-
-## Catalog layout
-
-| Schema | Content |
-|---|---|
-| `controller` | `ingestions` config table, `execution_log` |
-| `bronze` | Raw Delta tables + `sources` Volume (CSV files) |
-| `silver` | dbt incremental models (cleaned, typed, deduplicated) |
-| `gold` | dbt table models (KPIs, aggregations) |
-
-## Active demo sources
-
-| Source | Type | Target table | Active |
-|---|---|---|---|
-| Open Meteo — São Paulo hourly weather | API | `bronze.weather_raw` | yes |
-| IBGE Municipalities | CSV | `bronze.ibge_municipios_raw` | yes |
-| PostgreSQL orders (demo) | JDBC/SQL | `bronze.orders_raw` | no — requires DB |
-
-## Monitoring
-
-```sql
--- Last 24h execution status
-SELECT ingestion_name, status, rows_written, started_at
-FROM cli_catalog.controller.execution_log
-WHERE started_at >= NOW() - INTERVAL 24 HOURS
-ORDER BY started_at DESC;
-```
+`validate`, `plan` and `deploy` read `DATABRICKS_HOST` / `DATABRICKS_TOKEN` from `.env`
+(see [`.env.example`](.env.example)).
