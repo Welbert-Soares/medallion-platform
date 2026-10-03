@@ -1,6 +1,8 @@
 """Job task `sync_config` (`medallion-sync-config --config-dir DIR`): first task of every Run.
 
-Only wires adapters and calls the use case; DIR is the config delivered by the bundle.
+Only wires adapters and calls the use case; DIR is the config delivered by the bundle. It also
+creates the runtime tables and publishes the active Ingestions as the task value
+`active_ingestions`, the input of the for-each task.
 """
 
 import argparse
@@ -11,6 +13,7 @@ from medallion.controller.clock import SystemClock
 from medallion.controller.config import load_config
 from medallion.controller.sync import sync_config
 from medallion.databricks.controller_tables import DeltaControllerTables
+from medallion.databricks.runtime_tables import DeltaIngestionCatalog, ensure_runtime_tables
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -20,9 +23,14 @@ def main(argv: list[str] | None = None) -> None:
 
     clock = SystemClock()
     config = load_config(args.config_dir, clock)
-    tables = DeltaControllerTables(
-        SparkSession.builder.getOrCreate(), config.catalog_structure.controller
-    )
+    spark = SparkSession.builder.getOrCreate()
+    tables = DeltaControllerTables(spark, config.catalog_structure.controller)
     result = sync_config(config, tables, clock)
+    ensure_runtime_tables(spark, config)
+    active = [i.name for i in DeltaIngestionCatalog(spark, config).active()]
     print(f"sync_config: {result.ingestions} ingestions, {result.connections} connections "
-          f"→ {tables.schema}")
+          f"→ {tables.schema}; active: {active}")
+
+    from databricks.sdk.runtime import dbutils  # only resolvable inside a job run
+
+    dbutils.jobs.taskValues.set(key="active_ingestions", value=active)

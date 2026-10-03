@@ -312,7 +312,7 @@ def test_repository_config_mirrors_current_platform():
         "medallion_controller", "controller")
     assert {s.name for s in structure.source_systems} == {"weather", "ibge", "orders"}
     assert {config.raw_table_of(i): (i.source.type, i.active) for i in config.ingestions} == {
-        "medallion_raw.weather.sao_paulo": ("api", True),
+        "medallion_raw.weather.sao_paulo": ("api", False),  # until the API reader (#8)
         "medallion_raw.ibge.municipios": ("csv", True),
         "medallion_raw.orders.orders": ("sql", False),
     }

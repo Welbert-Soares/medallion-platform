@@ -73,6 +73,9 @@ class Controller(_Model):
     tags: dict[str, str] = {}
     grants: tuple[Grant, ...] = ()
 
+    def table(self, name: str) -> str:
+        return f"{self.catalog}.{self.schema_.name}.{name}"
+
 
 class CatalogStructure(_Model):
     layers: tuple[Layer, ...] = Field(min_length=1)

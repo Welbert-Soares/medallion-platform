@@ -4,7 +4,8 @@ ingestions:
   - name: weather_sao_paulo
     raw_table: sao_paulo
     description: "Temperatura e precipitação horária de São Paulo — Open Meteo API (sem autenticação)"
-    active: true
+    # Off until the API reader lands (#8); the old pipeline still loads weather.
+    active: false
     source:
       type: api
       url: "https://api.open-meteo.com/v1/forecast"
