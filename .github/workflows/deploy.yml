@@ -176,3 +176,6 @@ jobs:
               job_id = w.jobs.create(**settings.as_dict()).job_id
               print(f"Job criado: {job_id}")
           EOF
+
+      - name: Deploy bundle (medallion wheel + job, no Run)
+        run: databricks bundle deploy --target prod

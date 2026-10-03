@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "medallion"
+version = "0.1.0"
+description = "Metadata-driven Medallion platform on Databricks"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pyspark>=4.0",
+    "ruff==0.16.10",
+]
+
+[project.scripts]
+medallion-smoke = "medallion.smoke:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/medallion"]
+exclude = ["**/ruff.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,11 +1,15 @@
 target-version = "py311"
 
-# Globals injected by the Databricks notebook runtime.
-builtins = ["spark", "dbutils", "display"]
-
 [lint]
-select = ["E4", "E7", "E9", "F"]
+select = ["E4", "E7", "E9", "F", "TID251"]
+
+# ADR 0005: only medallion.databricks talks to Spark, Delta or the Databricks SDK.
+[lint.flake8-tidy-imports.banned-api]
+"pyspark".msg = "Only medallion.databricks may import pyspark (ADR 0005)"
+"databricks".msg = "Only medallion.databricks may import databricks libraries (ADR 0005)"
+"delta".msg = "Only medallion.databricks may import delta (ADR 0005)"
 
 [lint.per-file-ignores]
-# Notebook cells import after widgets and sys.path setup.
-"databricks/notebooks/**" = ["E402"]
+# The boundary applies inside the medallion package, except medallion.databricks itself.
+"!src/medallion/**" = ["TID251"]
+"src/medallion/databricks/**" = ["TID251"]
