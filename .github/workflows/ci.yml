@@ -80,8 +80,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install medallion
+        run: pip install ".[databricks]"
+
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
 
       - name: Validate bundle
         run: databricks bundle validate --target prod
+
+      - name: Catalog Structure dry-run (prints the diff, changes nothing)
+        run: medallion-catalog-structure config/platform
