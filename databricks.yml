@@ -74,14 +74,16 @@ resources:
 
         # dbt: one task per project, bronze → silver → gold per Source System. Bronze runs
         # even if some Ingestion failed; a failure in one Source System never blocks another.
+        # project_directory is the whole dbt/ folder: the task copies it to /tmp, and only then
+        # does the shared ../utils package resolve. dbt/dbt_project.yml names the profile.
         - task_key: dbt_bronze_ibge
           depends_on:
             - task_key: ingest
           run_if: ALL_DONE
           environment_key: dbt
           dbt_task:
-            project_directory: ./dbt/bronze_ibge
-            commands: ["dbt deps", "dbt build"]
+            project_directory: ./dbt
+            commands: ["dbt deps --project-dir bronze_ibge", "dbt build --project-dir bronze_ibge --profile medallion"]
             warehouse_id: ${var.warehouse_id}
             catalog: medallion_bronze
             schema: ibge
@@ -90,8 +92,8 @@ resources:
             - task_key: dbt_bronze_ibge
           environment_key: dbt
           dbt_task:
-            project_directory: ./dbt/silver_ibge
-            commands: ["dbt deps", "dbt build"]
+            project_directory: ./dbt
+            commands: ["dbt deps --project-dir silver_ibge", "dbt build --project-dir silver_ibge --profile medallion"]
             warehouse_id: ${var.warehouse_id}
             catalog: medallion_silver
             schema: ibge
@@ -101,8 +103,8 @@ resources:
           run_if: ALL_DONE
           environment_key: dbt
           dbt_task:
-            project_directory: ./dbt/bronze_weather
-            commands: ["dbt deps", "dbt build"]
+            project_directory: ./dbt
+            commands: ["dbt deps --project-dir bronze_weather", "dbt build --project-dir bronze_weather --profile medallion"]
             warehouse_id: ${var.warehouse_id}
             catalog: medallion_bronze
             schema: weather
@@ -111,8 +113,8 @@ resources:
             - task_key: dbt_bronze_weather
           environment_key: dbt
           dbt_task:
-            project_directory: ./dbt/silver_weather
-            commands: ["dbt deps", "dbt build"]
+            project_directory: ./dbt
+            commands: ["dbt deps --project-dir silver_weather", "dbt build --project-dir silver_weather --profile medallion"]
             warehouse_id: ${var.warehouse_id}
             catalog: medallion_silver
             schema: weather
@@ -121,8 +123,8 @@ resources:
             - task_key: dbt_silver_weather
           environment_key: dbt
           dbt_task:
-            project_directory: ./dbt/gold_weather
-            commands: ["dbt deps", "dbt build"]
+            project_directory: ./dbt
+            commands: ["dbt deps --project-dir gold_weather", "dbt build --project-dir gold_weather --profile medallion"]
             warehouse_id: ${var.warehouse_id}
             catalog: medallion_gold
             schema: weather
