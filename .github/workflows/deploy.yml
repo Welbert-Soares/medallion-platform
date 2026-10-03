@@ -48,6 +48,9 @@ jobs:
       - name: Apply Catalog Structure (creates, grants, revokes; never drops)
         run: medallion-catalog-structure config/platform --apply
 
+      - name: Ensure secret scopes of declared Connections (values are put by hand)
+        run: medallion-secret-scopes config/platform
+
       - name: Update Databricks Repo (pull latest main)
         run: databricks repos update "$DATABRICKS_REPO_ID" --branch main
 

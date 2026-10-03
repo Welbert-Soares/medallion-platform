@@ -49,7 +49,7 @@ CSV = {
 SQL = {
     "name": "orders_query", "raw_table": "orders", "active": False,
     "source": {"type": "sql", "connection_id": "pg", "query": "SELECT * FROM orders",
-               "filter": "WHERE status = 'paid'", "watermark_column": "updated_at",
+               "filter": "status = 'paid'", "watermark_column": "updated_at",
                "partition_column": "order_id"},
 }
 TABLE = {
@@ -115,7 +115,7 @@ def test_loads_every_source_type_into_typed_ingestions(tmp_path):
     sql = by_name["orders_query"].source
     assert isinstance(sql, SqlSource)
     assert (sql.connection_id, sql.filter, sql.watermark_column, sql.partition_column) == (
-        "pg", "WHERE status = 'paid'", "updated_at", "order_id")
+        "pg", "status = 'paid'", "updated_at", "order_id")
     assert by_name["orders_query"].active is False
 
     table = by_name["orders_customers"].source

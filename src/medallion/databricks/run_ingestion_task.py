@@ -9,9 +9,12 @@ from pyspark.sql import SparkSession
 
 from medallion.controller.clock import SystemClock
 from medallion.controller.config import load_config
+from medallion.controller.connections import ConfigConnectionCatalog
+from medallion.databricks.jdbc import DbutilsSecretProvider, SparkJdbcClient
 from medallion.databricks.raw_writer import DeltaRawWriter
 from medallion.databricks.runtime_tables import DeltaIngestionCatalog, DeltaRunLog
 from medallion.databricks.sources import ApiReader, CsvReader
+from medallion.ingestion.jdbc import JdbcReader
 from medallion.ingestion.run import run_ingestion
 
 
@@ -26,10 +29,12 @@ def main(argv: list[str] | None = None) -> None:
     clock = SystemClock()
     config = load_config(args.config_dir, clock)
     spark = SparkSession.builder.getOrCreate()
+    jdbc = JdbcReader(ConfigConnectionCatalog(config), DbutilsSecretProvider(),
+                      SparkJdbcClient(spark))
     run = run_ingestion(
         args.ingestion, args.run_id, args.task_run_id,
         catalog=DeltaIngestionCatalog(spark, config),
-        readers={"api": ApiReader(spark), "csv": CsvReader(spark)},
+        readers={"api": ApiReader(spark), "csv": CsvReader(spark), "sql": jdbc, "table": jdbc},
         writer=DeltaRawWriter(),
         run_log=DeltaRunLog(spark, config),
         clock=clock,

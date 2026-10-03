@@ -8,5 +8,6 @@ ingestions:
     source:
       type: sql
       connection_id: sql_orders_postgres
-      query: "SELECT * FROM orders WHERE updated_at > ?"
+      # The Watermark condition (updated_at > last value) is added at run time.
+      query: "SELECT * FROM orders"
       watermark_column: updated_at

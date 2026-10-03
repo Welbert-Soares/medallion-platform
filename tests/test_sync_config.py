@@ -42,7 +42,7 @@ SQL = {
 TABLE = {
     "name": "orders_customers", "source_system": "orders", "raw_table": "customers",
     "active": True, "source": {"type": "table", "connection_id": "pg", "schema": "public",
-                               "table": "customers", "filter": "WHERE active"},
+                               "table": "customers", "filter": "active"},
 }
 
 
@@ -94,7 +94,7 @@ def test_csv_sql_and_table_rows():
             sql["source_partition_column"], sql["active"]) \
         == ("pg", "SELECT * FROM orders", "updated_at", "order_id", False)
     assert (table["source_schema"], table["source_table"], table["source_filter"]) \
-        == ("public", "customers", "WHERE active")
+        == ("public", "customers", "active")
 
 
 def test_api_without_window_leaves_window_columns_empty():
