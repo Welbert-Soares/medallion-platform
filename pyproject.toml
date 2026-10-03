@@ -25,9 +25,9 @@ dev = [
 ]
 
 [project.scripts]
-medallion-smoke = "medallion.smoke:main"
 medallion-validate-config = "medallion.controller.config.validate:main"
 medallion-catalog-structure = "medallion.databricks.catalog_structure_cli:main"
+medallion-sync-config = "medallion.databricks.sync_config_task:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/medallion"]
