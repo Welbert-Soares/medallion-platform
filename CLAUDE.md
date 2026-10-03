@@ -219,3 +219,17 @@ Warehouse path (`/sql/1.0/warehouses/12ca72db06431bb2`) committed directly in `m
 | 4 — CI/CD | **Done** | `ci.yml` (lint + YAML validation), `deploy.yml` (repos update + SDK upsert) |
 | 5 — Multi-catalog architecture | **Done** | 5 catalogs `medallion_*`, schemas por sistema, raw separado do medallion |
 | 6 — dbt multi-project | **Done** | `utils/` + `bronze_*/silver_*/gold_*` projects, macro `incremental_join_where` |
+
+## Agent skills
+
+### Issue tracker
+
+Issues e specs ficam no GitHub Issues de Welbert-Soares/medallion-platform (via `gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Labels canônicos padrão: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: um `CONTEXT.md` + `docs/adr/` na raiz. See `docs/agents/domain.md`.
