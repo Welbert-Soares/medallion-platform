@@ -5,8 +5,10 @@ import re
 
 from pyspark.sql import DataFrame, SparkSession
 
-from medallion.controller.config.model import CsvSource, Ingestion
+from medallion.controller.config.model import ApiSource, CsvSource, Ingestion
+from medallion.ingestion.api import HttpJson, UrllibHttpJson, fetch_records
 from medallion.ingestion.run import ReadResult
+from medallion.ingestion.window import DateWindow
 
 
 def normalize_column_names(df: DataFrame) -> DataFrame:
@@ -34,7 +36,8 @@ class CsvReader:
     def fingerprint(self, ingestion: Ingestion) -> str | None:
         return file_fingerprint(self._source(ingestion).path)
 
-    def read(self, ingestion: Ingestion, watermark: str | None) -> ReadResult:
+    def read(self, ingestion: Ingestion, watermark: str | None, window: DateWindow | None
+             ) -> ReadResult:
         source = self._source(ingestion)
         df = (self.spark.read
               .option("delimiter", source.delimiter)
@@ -49,3 +52,21 @@ class CsvReader:
         if not isinstance(ingestion.source, CsvSource):
             raise TypeError(f"{ingestion.name} is not a csv ingestion")
         return ingestion.source
+
+
+class ApiReader:
+    def __init__(self, spark: SparkSession, http: HttpJson | None = None):
+        self.spark = spark
+        self.http = http or UrllibHttpJson()
+
+    def fingerprint(self, ingestion: Ingestion) -> str | None:
+        return None
+
+    def read(self, ingestion: Ingestion, watermark: str | None, window: DateWindow | None
+             ) -> ReadResult:
+        if not isinstance(ingestion.source, ApiSource):
+            raise TypeError(f"{ingestion.name} is not an api ingestion")
+        records = fetch_records(ingestion.source, window, self.http)
+        if not records:
+            return ReadResult(None, 0)
+        return ReadResult(normalize_column_names(self.spark.createDataFrame(records)), len(records))

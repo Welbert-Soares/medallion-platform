@@ -11,7 +11,7 @@ from medallion.controller.clock import SystemClock
 from medallion.controller.config import load_config
 from medallion.databricks.raw_writer import DeltaRawWriter
 from medallion.databricks.runtime_tables import DeltaIngestionCatalog, DeltaRunLog
-from medallion.databricks.sources import CsvReader
+from medallion.databricks.sources import ApiReader, CsvReader
 from medallion.ingestion.run import run_ingestion
 
 
@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> None:
     run = run_ingestion(
         args.ingestion, args.run_id, args.task_run_id,
         catalog=DeltaIngestionCatalog(spark, config),
-        readers={"csv": CsvReader(spark)},
+        readers={"api": ApiReader(spark), "csv": CsvReader(spark)},
         writer=DeltaRawWriter(),
         run_log=DeltaRunLog(spark, config),
         clock=clock,

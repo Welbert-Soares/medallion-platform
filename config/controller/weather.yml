@@ -13,7 +13,8 @@ ingestions:
         params:
           flag_distinct: false
           flag_hash_row: false
-        active: true
+        # Moved to the new pipeline (config/platform), reading observed data from the Archive API.
+        active: false
         url:
           link: "https://api.open-meteo.com/v1/forecast"
           mode: fixed

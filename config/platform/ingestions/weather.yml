@@ -3,17 +3,21 @@ source_system: weather
 ingestions:
   - name: weather_sao_paulo
     raw_table: sao_paulo
-    description: "Temperatura e precipitação horária de São Paulo — Open Meteo API (sem autenticação)"
-    # Off until the API reader lands (#8); the old pipeline still loads weather.
-    active: false
+    description: "Temperatura e precipitação horária observadas em São Paulo — Open-Meteo Archive API (sem autenticação)"
+    active: true
     source:
       type: api
-      url: "https://api.open-meteo.com/v1/forecast"
+      url: "https://archive-api.open-meteo.com/v1/archive"
       params:
         latitude: -23.5505
         longitude: -46.6333
         hourly: "temperature_2m,precipitation"
-        forecast_days: 1
         timezone: "America/Sao_Paulo"
       flatten_method: zip_arrays
       data_key: hourly
+      # Observed data lands in the archive with a delay of a few days.
+      window:
+        start_param: start_date
+        end_param: end_date
+        start_date: 2026-01-01
+        lag_days: 5
