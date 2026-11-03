@@ -7,6 +7,8 @@ import pytest
 from medallion.controller.bundle_tasks import (
     BEGIN,
     END,
+    checks_freshness,
+    dbt_commands,
     dbt_source_systems,
     main,
     render_tasks,
@@ -38,8 +40,30 @@ def test_each_task_builds_its_source_system_by_tag():
 
     assert block.startswith(BEGIN) and block.endswith(END)
     assert "        - task_key: dbt_weather" in block
-    assert '            commands: ["dbt build --select tag:weather"]' in block
+    assert '            commands: ["dbt deps", "dbt build --select tag:weather"]' in block
     assert "          run_if: ALL_DONE" in block
+
+
+def test_freshness_check_runs_last_and_only_when_declared():
+    assert dbt_commands("weather", freshness=False) == [
+        "dbt deps", "dbt build --select tag:weather"]
+    assert dbt_commands("weather", freshness=True)[-1] == (
+        "dbt source freshness --select source:weather")
+
+
+def test_freshness_is_read_from_the_raw_sources_config(tmp_path):
+    for system, sources in {
+        "weather": "sources:\n  - name: weather\n    config:\n      freshness:\n"
+                   "        error_after: {count: 2, period: day}\n",
+        "ibge": "sources:\n  - name: ibge\n",
+    }.items():
+        (tmp_path / "bronze" / system).mkdir(parents=True)
+        (tmp_path / "bronze" / system / "__sources.yml").write_text(sources)
+    (tmp_path / "bronze" / "orders").mkdir(parents=True)  # no __sources.yml yet
+
+    assert checks_freshness(tmp_path, "weather")
+    assert not checks_freshness(tmp_path, "ibge")
+    assert not checks_freshness(tmp_path, "orders")
 
 
 def test_replace_block_keeps_everything_outside_the_markers():

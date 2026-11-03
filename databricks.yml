@@ -84,7 +84,7 @@ resources:
           environment_key: dbt
           dbt_task:
             project_directory: ./dbt
-            commands: ["dbt build --select tag:weather"]
+            commands: ["dbt deps", "dbt build --select tag:weather", "dbt source freshness --select source:weather"]
             warehouse_id: ${var.warehouse_id}
             catalog: medallion_bronze
             schema: weather
@@ -95,7 +95,7 @@ resources:
           environment_key: dbt
           dbt_task:
             project_directory: ./dbt
-            commands: ["dbt build --select tag:ibge"]
+            commands: ["dbt deps", "dbt build --select tag:ibge"]
             warehouse_id: ${var.warehouse_id}
             catalog: medallion_bronze
             schema: ibge

@@ -33,7 +33,9 @@ def test_every_source_system_with_models_has_one_dbt_task():
         # The single project at the root of dbt/, whose name ('medallion') names the profile
         # Databricks generates: no --project-dir or --profile needed.
         assert task["dbt_task"]["project_directory"] == "./dbt"
-        assert task["dbt_task"]["commands"] == [f"dbt build --select tag:{system}"]
+        commands = task["dbt_task"]["commands"]
+        assert commands[:2] == ["dbt deps", f"dbt build --select tag:{system}"]
+        assert commands[2:] in ([], [f"dbt source freshness --select source:{system}"])
         assert task["dbt_task"]["warehouse_id"] == "${var.warehouse_id}"
 
 
@@ -56,6 +58,13 @@ def test_every_model_folder_is_tagged_and_scheduled_by_its_source_system():
             assert config["+tags"] == [system_dir.name], f"{layer_dir.name}/{system_dir.name}"
             assert config["+schema"] == system_dir.name, f"{layer_dir.name}/{system_dir.name}"
             assert system_dir.name in SYSTEMS_WITH_MODELS, f"{system_dir.name} has no bronze models"
+
+
+def test_freshness_runs_only_where_raw_declares_it():
+    """weather lands daily; ibge is a static CSV that only lands when the file changes."""
+    assert TASKS["dbt_weather"]["dbt_task"]["commands"][-1] == (
+        "dbt source freshness --select source:weather")
+    assert not any("freshness" in c for c in TASKS["dbt_ibge"]["dbt_task"]["commands"])
 
 
 def test_failed_ingestion_fails_the_run_through_a_leaf_task():

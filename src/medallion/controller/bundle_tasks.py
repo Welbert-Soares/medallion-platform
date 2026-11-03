@@ -1,9 +1,11 @@
 """`medallion-bundle-tasks [--check]`: generate the job's dbt tasks inside `databricks.yml`.
 
 One dbt task per Source System that has dbt models (`dbt/models/bronze/<system>/`), in the order
-of `catalog_structure.yml`. Each runs `dbt build --select tag:<system>`, so bronze → silver → gold
-and their tests run in dependency order inside one task, and a failing Source System never blocks
-another (ADR 0006). Every task starts after the Ingestions even when one failed (`ALL_DONE`).
+of `catalog_structure.yml`. Each runs `dbt deps`, then `dbt build --select tag:<system>`, so
+bronze → silver → gold and their tests run in dependency order inside one task, and a failing Source
+System never blocks another (ADR 0006). When the Source System's Raw sources declare a freshness
+check, `dbt source freshness` runs last and fails the task if Raw stopped growing. Every task starts
+after the Ingestions even when one failed (`ALL_DONE`).
 
 A bundle cannot split one job's tasks across files, so the tasks live between two marker lines in
 `databricks.yml`, rewritten by this command; `--check` fails when they are out of date.
@@ -12,6 +14,8 @@ A bundle cannot split one job's tasks across files, so the tasks live between tw
 import argparse
 import sys
 from pathlib import Path
+
+import yaml
 
 from medallion.controller.config.loader import ConfigError, load_config
 from medallion.controller.config.model import PlatformConfig
@@ -26,9 +30,28 @@ def dbt_source_systems(config: PlatformConfig, models_dir: Path) -> list[str]:
             if (models_dir / "bronze" / s.name).is_dir()]
 
 
-def render_tasks(systems: list[str], bronze_catalog: str) -> str:
+def checks_freshness(models_dir: Path, system: str) -> bool:
+    """Whether any Raw source of the Source System declares a freshness check."""
+    sources_file = models_dir / "bronze" / system / "__sources.yml"
+    if not sources_file.is_file():
+        return False
+    sources = (yaml.safe_load(sources_file.read_text()) or {}).get("sources", [])
+    return any((source.get("config") or {}).get("freshness") or source.get("freshness")
+               for source in sources)
+
+
+def dbt_commands(system: str, freshness: bool) -> list[str]:
+    commands = ["dbt deps", f"dbt build --select tag:{system}"]
+    if freshness:
+        commands.append(f"dbt source freshness --select source:{system}")
+    return commands
+
+
+def render_tasks(systems: list[str], bronze_catalog: str,
+                 freshness: frozenset[str] = frozenset()) -> str:
     lines = [BEGIN]
     for system in systems:
+        commands = ", ".join(f'"{c}"' for c in dbt_commands(system, system in freshness))
         lines += [
             f"        - task_key: dbt_{system}",
             "          depends_on:",
@@ -37,7 +60,7 @@ def render_tasks(systems: list[str], bronze_catalog: str) -> str:
             "          environment_key: dbt",
             "          dbt_task:",
             "            project_directory: ./dbt",
-            f'            commands: ["dbt build --select tag:{system}"]',
+            f"            commands: [{commands}]",
             "            warehouse_id: ${var.warehouse_id}",
             f"            catalog: {bronze_catalog}",
             f"            schema: {system}",
@@ -68,8 +91,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{args.config_dir}: {e}", file=sys.stderr)
         return 1
 
-    systems = dbt_source_systems(config, Path(args.models_dir))
-    block = render_tasks(systems, config.catalog_structure.layer("bronze").catalog)
+    models_dir = Path(args.models_dir)
+    systems = dbt_source_systems(config, models_dir)
+    freshness = frozenset(s for s in systems if checks_freshness(models_dir, s))
+    block = render_tasks(systems, config.catalog_structure.layer("bronze").catalog, freshness)
     bundle = Path(args.bundle)
     current = bundle.read_text()
     updated = replace_block(current, block)
