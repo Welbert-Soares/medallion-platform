@@ -3,7 +3,7 @@ source_system: orders
 ingestions:
   - name: orders_postgres
     raw_table: orders
-    description: "Pedidos do PostgreSQL de demonstração — requer Docker (ver README)"
+    description: "Pedidos de um PostgreSQL de demonstração — inativa: a Connection aponta para localhost, inalcançável pelo serverless (ver docs/connections.md)"
     active: false
     source:
       type: sql
