@@ -40,8 +40,50 @@ def dbt_counts(manifest: Mapping | None) -> dict[str, int] | None:
     }
 
 
+_PERSISTED = {"table", "incremental"}
+
+
+def data_tables(config: PlatformConfig, manifest: Mapping | None) -> list[dict]:
+    """Every table that holds data, per Layer: Raw sources and persisted models of the project.
+
+    Views (staging) are left out: they hold no rows of their own. The Controller is not a Layer.
+    """
+    if not manifest:
+        return []
+    layer_of = {layer.catalog: layer.name for layer in config.catalog_structure.layers}
+    project = manifest.get("metadata", {}).get("project_name")
+    nodes = [*manifest.get("sources", {}).values(),
+             *(n for n in manifest.get("nodes", {}).values()
+               if n.get("resource_type") == "model"
+               and n.get("config", {}).get("materialized") in _PERSISTED)]
+    tables = []
+    for node in nodes:
+        if node.get("package_name") != project or node.get("database") not in layer_of:
+            continue
+        table = node.get("alias") or node.get("identifier") or node["name"]
+        tables.append({"layer": layer_of[node["database"]], "schema": node["schema"],
+                       "table": table,
+                       "relation": f"{node['database']}.{node['schema']}.{table}"})
+    order = [layer.name for layer in config.catalog_structure.layers]
+    return sorted(tables, key=lambda t: (order.index(t["layer"]), t["schema"], t["table"]))
+
+
+def row_count_sql(tables: Sequence[Mapping]) -> str:
+    """One query counting the rows of every table (`relation`, `row_count`)."""
+    return "\nUNION ALL\n".join(
+        f"SELECT '{t['relation']}' AS relation, count(*) AS row_count FROM {t['relation']}"
+        for t in tables)
+
+
+def series_payload(table: str, rows: Sequence[Mapping], now: datetime) -> dict:
+    """A gold table published as-is, for charts (e.g. the portfolio's temperature series)."""
+    return {"generated_at": now.isoformat(timespec="seconds"), "table": table,
+            "rows": list(rows)}
+
+
 def platform_metrics(config: PlatformConfig, runs: Sequence[Mapping], now: datetime,
-                     manifest: Mapping | None = None) -> dict:
+                     manifest: Mapping | None = None,
+                     table_rows: Sequence[Mapping] = ()) -> dict:
     ordered = sorted(runs, key=lambda r: r["started_at"])
     last = ordered[-1] if ordered else None
     hours_since_last = (round((now - _timestamp(last["finished_at"])).total_seconds() / 3600, 1)
@@ -66,6 +108,8 @@ def platform_metrics(config: PlatformConfig, runs: Sequence[Mapping], now: datet
             "hours_since_last_run": hours_since_last,
             "stale": hours_since_last is None or hours_since_last > STALE_AFTER_HOURS,
         },
+        "tables": [{key: t[key] for key in ("layer", "schema", "table", "rows")}
+                   for t in table_rows],
         "recent_runs": [
             {key: run[key] for key in ("run_id", "started_at", "status", "ingestion_runs",
                                        "succeeded", "skipped", "failed", "rows_written",

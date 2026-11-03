@@ -72,7 +72,8 @@ the overview, the job diagram and the `make` targets.
   scopes → CSV upload to `/Volumes/medallion_raw/sources/files/` → `bundle deploy`; then calls
   `site.yml`. No Run is triggered.
 - Site (`.github/workflows/site.yml`; after every deploy, daily at 06:30 BRT, or by hand): `dbt docs
-  generate --static` + `medallion-export-metrics` (`metrics.json` from `run_metrics`) → GitHub Pages
+  generate --static` + `medallion-export-metrics` (`metrics.json` from `run_metrics` + row counts of
+  every Raw source and persisted model in the manifest; `gold.json` = `kpi_daily`) → GitHub Pages
   (`github-pages` environment, only `pages`/`id-token` write). On the schedule it fails when no Run
   finished in 26 h: the external heartbeat (ADR 0007).
 - `dbt_platform` (hand-written, outside the generated block): builds `tag:platform` after `ingest`
