@@ -97,8 +97,7 @@ e uma fonte com problema nunca bloqueia outra. As tarefas são geradas a partir 
 `make bundle`.
 
 Uma Run real no workspace: as duas Ingestions ativas rodam em paralelo no `ingest` (for-each), e
-cada Source System segue sua cadeia dbt até a gold. (Print de antes da unificação do dbt, quando
-havia uma tarefa por Layer.)
+depois uma tarefa dbt por Source System, também em paralelo, leva cada fonte até a gold.
 
 ![Grafo do job numa Run bem-sucedida no Databricks](docs/img/job-run.png)
 
