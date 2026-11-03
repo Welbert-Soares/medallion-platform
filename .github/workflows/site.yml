@@ -1,7 +1,8 @@
 name: Site
 
 # Publishes https://welbert-soares.github.io/medallion-platform/: the dbt docs (lineage, columns,
-# tests) and metrics.json (platform shape and Run history, read by the portfolio).
+# tests), metrics.json (platform shape, Run history, rows per table) and gold.json (the
+# kpi_daily series), both read by the portfolio.
 #
 # Called by deploy.yml after every deploy, and runs daily after the 06:00 Run so the metrics and
 # the column types in the docs follow the tables. The daily run is also the platform's external
@@ -71,6 +72,8 @@ jobs:
           --warehouse-id ${{ steps.warehouse.outputs.id }}
           --manifest dbt/target/manifest.json
           --out site/metrics.json
+          --series-table medallion_gold.weather.kpi_daily
+          --series-out site/gold.json
 
       - uses: actions/upload-pages-artifact@v5
         with:

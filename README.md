@@ -147,7 +147,10 @@ A plataforma mede a si mesma com as próprias ferramentas
   duração). A tarefa `dbt_platform` o reconstrói depois de toda ingestão, inclusive das que falham.
 - **[`metrics.json`](https://welbert-soares.github.io/medallion-platform/metrics.json):** publicado no GitHub Pages pelo workflow
   [`site.yml`](.github/workflows/site.yml), todo dia às 06:30, com o formato da plataforma (fontes,
-  Ingestions ativas, modelos e testes dbt) e o histórico das Runs. É de onde o portfólio lê os números.
+  Ingestions ativas, modelos e testes dbt), o histórico das Runs e as **linhas de cada tabela por
+  Layer** (a deduplicação aparece nos números: 64 linhas do IBGE na raw, 32 na bronze). Junto vai o
+  [`gold.json`](https://welbert-soares.github.io/medallion-platform/gold.json), a série diária da
+  gold do clima. O portfólio lê os dois.
 - **Heartbeat externo:** os testes e a freshness rodam dentro do job, então não percebem o job **não
   rodar**. O mesmo workflow falha quando não houve Run nas últimas 26 horas, e o GitHub avisa por
   e-mail. Foi assim que apareceu um buraco real: de 08/10 a 02/11, o agendamento não disparou nenhuma

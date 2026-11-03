@@ -7,9 +7,12 @@ from medallion.controller.config.loader import load_config
 from medallion.controller.metrics import (
     RECENT_RUNS,
     STALE_AFTER_HOURS,
+    data_tables,
     dbt_counts,
     platform_metrics,
+    row_count_sql,
     run_metrics_table,
+    series_payload,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -98,3 +101,66 @@ def test_dbt_counts_ignore_installed_packages():
     }
 
     assert dbt_counts(manifest) == {"models": 1, "tests": 2, "sources": 1}
+
+
+def _model(name, database, schema, alias, materialized, package="medallion"):
+    return {"resource_type": "model", "package_name": package, "name": name,
+            "database": database, "schema": schema, "alias": alias,
+            "config": {"materialized": materialized}}
+
+
+MANIFEST = {
+    "metadata": {"project_name": "medallion"},
+    "sources": {
+        "source.medallion.weather.sao_paulo": {
+            "package_name": "medallion", "name": "sao_paulo", "identifier": "sao_paulo",
+            "database": "medallion_raw", "schema": "weather"},
+        "source.medallion.controller.execution_log": {  # the Controller is not a Layer
+            "package_name": "medallion", "name": "execution_log", "identifier": "execution_log",
+            "database": "medallion_controller", "schema": "controller"},
+    },
+    "nodes": {
+        "model.medallion.gold": _model("gold_weather__kpi_daily", "medallion_gold", "weather",
+                                       "kpi_daily", "table"),
+        "model.medallion.bronze": _model("bronze_weather__sao_paulo", "medallion_bronze",
+                                         "weather", "sao_paulo", "incremental"),
+        "model.medallion.stg": _model("stg_bronze_weather__sao_paulo", "medallion_bronze",
+                                      "weather", "stg_sao_paulo", "view"),
+        "model.dbt_utils.x": _model("x", "medallion_gold", "weather", "x", "table", "dbt_utils"),
+        "test.medallion.t": {"resource_type": "test", "package_name": "medallion"},
+    },
+}
+
+
+def test_data_tables_are_raw_sources_and_persisted_models_in_layer_order():
+    tables = data_tables(CONFIG, MANIFEST)
+
+    assert [(t["layer"], t["table"]) for t in tables] == [
+        ("raw", "sao_paulo"), ("bronze", "sao_paulo"), ("gold", "kpi_daily")]
+    assert tables[1]["relation"] == "medallion_bronze.weather.sao_paulo"
+    assert data_tables(CONFIG, None) == []
+
+
+def test_one_query_counts_every_table():
+    sql = row_count_sql(data_tables(CONFIG, MANIFEST))
+
+    assert sql.count("UNION ALL") == 2
+    assert ("SELECT 'medallion_gold.weather.kpi_daily' AS relation, count(*) AS row_count "
+            "FROM medallion_gold.weather.kpi_daily") in sql
+
+
+def test_table_rows_are_published_without_the_relation():
+    rows = [{**t, "rows": 10} for t in data_tables(CONFIG, MANIFEST)]
+
+    tables = platform_metrics(CONFIG, [], NOW, MANIFEST, rows)["tables"]
+
+    assert tables[0] == {"layer": "raw", "schema": "weather", "table": "sao_paulo", "rows": 10}
+
+
+def test_series_payload_keeps_rows_as_they_are():
+    rows = [{"reference_date": "2026-10-01", "avg_temperature": 21.5}]
+
+    payload = series_payload("medallion_gold.weather.kpi_daily", rows, NOW)
+
+    assert payload == {"generated_at": "2026-11-03T10:00:00+00:00",
+                       "table": "medallion_gold.weather.kpi_daily", "rows": rows}
