@@ -28,9 +28,10 @@ Paulo (API Open-Meteo), municípios do IBGE (CSV) e pedidos de um Postgres (JDBC
   dbutils. O CI falha se alguém quebrar essa regra ([ADR 0005](docs/adr/0005-controller-and-medallion-are-separate-modules.md)).
 - **Testes sem cluster.** 129 testes rodam em ~2 s, sem Spark nem JVM, usando fakes das portas em
   [`tests/fakes/`](tests/fakes/).
-- **Deploy versionado com o código.** Job e pacote Python são publicados juntos como Databricks
-  Asset Bundle ([ADR 0001](docs/adr/0001-databricks-asset-bundles.md)); segredos ficam em secret
-  scopes e nunca no Git.
+- **CI/CD de ponta a ponta no GitHub Actions.** Todo PR é validado em duas frentes: código, config e
+  dbt sem credenciais, e o diff que seria aplicado no workspace real. Só o merge publica, como
+  Databricks Asset Bundle versionado junto com o código ([ADR 0001](docs/adr/0001-databricks-asset-bundles.md)).
+  Detalhes em [CI/CD com GitHub Actions](#cicd-com-github-actions).
 
 ## Arquitetura
 
@@ -94,12 +95,68 @@ flowchart LR
 O merge na `main` aplica a Catalog Structure, garante os secret scopes, envia os arquivos de origem
 para o Volume e publica o bundle. Ele **nunca** dispara uma Run.
 
-## CI/CD
+## CI/CD com GitHub Actions
 
-| Quando | O que roda |
+Nada chega ao workspace sem passar pelo GitHub Actions. Um pull request só mostra o que **mudaria**; o
+merge na `main` é o único caminho que **muda** o workspace, e mesmo ele não executa dados.
+
+```mermaid
+flowchart LR
+    pr([Pull request<br/>para main]) --> validate & bundle
+    subgraph ci["ci.yml"]
+        validate["validate<br/>sem credenciais"]
+        bundle["bundle<br/>ambiente prod"]
+    end
+    validate & bundle -->|revisão + merge| deploy
+    subgraph cd["deploy.yml"]
+        deploy["deploy<br/>ambiente prod"]
+    end
+    deploy --> ws[(Workspace Databricks<br/>job agendado às 06:00)]
+```
+
+### No pull request: [`ci.yml`](.github/workflows/ci.yml)
+
+Dois jobs em paralelo, separados pelo que precisam acessar:
+
+**`validate`**: roda sem nenhuma credencial, então qualquer PR passa por ele.
+
+| Etapa | O que garante |
 |---|---|
-| Pull request para `main` ([`ci.yml`](.github/workflows/ci.yml)) | ruff (incluindo os limites de import), pytest, build do pacote, validação do config, `dbt parse` de cada projeto, validação do bundle e dry-run da Catalog Structure contra o workspace |
-| Merge na `main` ([`deploy.yml`](.github/workflows/deploy.yml)) | aplica a Catalog Structure, cria secret scopes, envia CSVs ao Volume e faz `databricks bundle deploy` |
+| `ruff check` | estilo e os limites de import do [ADR 0005](docs/adr/0005-controller-and-medallion-are-separate-modules.md) (regra `TID251`): só `medallion.databricks` pode importar Spark ou o SDK |
+| `pytest` | os 129 testes dos casos de uso, com fakes no lugar de Spark e Databricks |
+| build do pacote | o `medallion` empacota de verdade |
+| `medallion-validate-config` | o YAML da plataforma é válido contra os modelos Pydantic (tipos, referências entre Ingestions e Connections) |
+| `dbt parse` em cada projeto | SQL e Jinja dos modelos dbt sem erro, usando um profile de mentira, sem conectar no warehouse |
+
+**`bundle`**: roda no ambiente `prod` do GitHub, com as credenciais do workspace.
+
+| Etapa | O que garante |
+|---|---|
+| `databricks bundle validate` | a definição do job e do pacote é aceita pelo Databricks |
+| dry-run da Catalog Structure | imprime no log do PR **o diff** que o merge vai aplicar no Unity Catalog (catálogos, schemas, permissões a conceder ou revogar), sem mudar nada |
+
+### No merge: [`deploy.yml`](.github/workflows/deploy.yml)
+
+Um job no ambiente `prod`, em ordem:
+
+1. **Confere os secrets:** falha cedo, com mensagem clara, se `DATABRICKS_HOST` ou `DATABRICKS_TOKEN` não estiverem configurados.
+2. **Aplica a Catalog Structure:** cria o que falta e reconcilia as permissões, inclusive revogando; nunca apaga catálogos, schemas ou volumes ([ADR 0004](docs/adr/0004-catalog-structure-reconciles-grants.md)).
+3. **Garante os secret scopes** das Connections declaradas. Os valores são colocados à mão e nunca passam pelo CI ([Conexões](docs/connections.md)).
+4. **Envia os CSVs de origem** para o Volume `medallion_raw.sources.files`.
+5. **`databricks bundle deploy`:** publica o pacote e o job agendado ([ADR 0001](docs/adr/0001-databricks-asset-bundles.md)). Cada deploy gera uma versão única do pacote (`dynamic_version`), para o compute serverless nunca reaproveitar um pacote antigo do cache.
+
+O deploy **não dispara uma Run**: publicar código e processar dado são eventos separados. A próxima
+Run agendada já usa a versão nova.
+
+### Segurança da pipeline
+
+- **Credenciais só no ambiente `prod`** do GitHub, e só nos jobs que falam com o workspace.
+- **Actions de terceiros fixadas por commit**, não por branch: o deploy roda com o token do
+  workspace no ambiente, então uma mudança na action só entra depois de revisada. O
+  [Dependabot](.github/dependabot.yml) abre um PR semanal quando sai uma versão nova.
+- **PRs de fork não acessam o workspace.** O GitHub não entrega secrets a eles, e o job `bundle`
+  roda só para branches deste repositório; o `validate`, que não precisa de credenciais, roda para
+  todos.
 
 ## Adicionando uma fonte
 
