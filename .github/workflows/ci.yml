@@ -63,9 +63,11 @@ jobs:
         run: dbt parse --profiles-dir ~/.dbt --no-use-colors
 
   bundle:
-    # Needs workspace credentials, which GitHub never passes to PRs from forks:
-    # run only for branches of this repository instead of failing on every fork PR.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Needs workspace credentials, which GitHub never passes to PRs from forks or from Dependabot:
+    # skip it there instead of failing (a skipped job still satisfies a required status check).
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: prod
 

@@ -169,9 +169,9 @@ Run agendada já usa a versão nova.
 - **Actions de terceiros fixadas por commit**, não por branch: o deploy roda com o token do
   workspace no ambiente, então uma mudança na action só entra depois de revisada. O
   [Dependabot](.github/dependabot.yml) abre um PR semanal quando sai uma versão nova.
-- **PRs de fork não acessam o workspace.** O GitHub não entrega secrets a eles, e o job `bundle`
-  roda só para branches deste repositório; o `validate`, que não precisa de credenciais, roda para
-  todos.
+- **PRs de fork e do Dependabot não acessam o workspace.** O GitHub não entrega secrets a eles, e o
+  job `bundle` é pulado nesses casos (um job pulado conta como aprovado num check obrigatório); o
+  `validate`, que não precisa de credenciais, roda para todos.
 
 ## Adicionando uma fonte
 
