@@ -1,8 +1,10 @@
-# Copy to ~/.dbt/profiles.yml and fill in your credentials.
-# One profile per dbt project — profile name must match the project name in dbt_project.yml.
-# Never commit this file with real values.
+# Copy to ~/.dbt/profiles.yml and fill in your credentials. Never commit it with real values.
+# One profile, named after the single dbt project (dbt_project.yml: profile 'medallion').
+# Models set their own catalog and schema (ADR 0006); catalog/schema here are only the defaults.
+#
+#   cd dbt && dbt build --select tag:weather    # one Source System, bronze → silver → gold
 
-utils:
+medallion:
   target: dev
   outputs:
     dev:
@@ -11,65 +13,5 @@ utils:
       http_path: /sql/1.0/warehouses/12ca72db06431bb2
       token: <personal-access-token>
       catalog: medallion_bronze
-      schema: weather
-      threads: 4
-
-bronze_weather:
-  target: dev
-  outputs:
-    dev:
-      type: databricks
-      host: <workspace>.azuredatabricks.net
-      http_path: /sql/1.0/warehouses/12ca72db06431bb2
-      token: <personal-access-token>
-      catalog: medallion_bronze
-      schema: weather
-      threads: 4
-
-bronze_ibge:
-  target: dev
-  outputs:
-    dev:
-      type: databricks
-      host: <workspace>.azuredatabricks.net
-      http_path: /sql/1.0/warehouses/12ca72db06431bb2
-      token: <personal-access-token>
-      catalog: medallion_bronze
-      schema: ibge
-      threads: 4
-
-silver_weather:
-  target: dev
-  outputs:
-    dev:
-      type: databricks
-      host: <workspace>.azuredatabricks.net
-      http_path: /sql/1.0/warehouses/12ca72db06431bb2
-      token: <personal-access-token>
-      catalog: medallion_silver
-      schema: weather
-      threads: 4
-
-silver_ibge:
-  target: dev
-  outputs:
-    dev:
-      type: databricks
-      host: <workspace>.azuredatabricks.net
-      http_path: /sql/1.0/warehouses/12ca72db06431bb2
-      token: <personal-access-token>
-      catalog: medallion_silver
-      schema: ibge
-      threads: 4
-
-gold_weather:
-  target: dev
-  outputs:
-    dev:
-      type: databricks
-      host: <workspace>.azuredatabricks.net
-      http_path: /sql/1.0/warehouses/12ca72db06431bb2
-      token: <personal-access-token>
-      catalog: medallion_gold
       schema: weather
       threads: 4

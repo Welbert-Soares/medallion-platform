@@ -1,2 +1,0 @@
-packages:
-  - local: "{{ env_var('DBT_LOCAL_PACKAGES_PATH', '..') }}/utils"

@@ -17,9 +17,10 @@ the overview, the job diagram and the `make` targets.
     CLI entry points (composition roots).
 - `config/platform/` — the only config: `catalog_structure.yml`, `connections.yml`,
   `ingestions/<source_system>.yml`.
-- `dbt/` — one dbt project per Layer × Source System (`bronze_ibge`, `silver_weather`, …) plus the
-  shared `utils` package.
-- `databricks.yml` — bundle: wheel artifact and the `medallion` job.
+- `dbt/` — one dbt project (`medallion`, ADR 0006): `models/<layer>/<source system>/{staging,marts}/`,
+  shared macros in `dbt/macros/`.
+- `databricks.yml` — bundle: wheel artifact and the `medallion` job. Its dbt tasks sit between
+  generated markers: regenerate with `make bundle` (`medallion-bundle-tasks`), never by hand.
 - `tests/` — pytest; in-memory port fakes in `tests/fakes/`.
 
 ## Rules that are easy to break
@@ -59,29 +60,34 @@ the overview, the job diagram and the `make` targets.
 ## Job and deploy
 
 - Tasks: `sync_config` (also publishes the `active_ingestions` task value) → `ingest` for-each
-  calling `medallion-run-ingestion` per active Ingestion → one `dbt_task` per dbt project.
-  Bronze runs with `run_if: ALL_DONE`; the leaf `ingestions_succeeded` makes the Run fail when any
-  Ingestion failed. Adding a dbt project means adding its task (`tests/test_bundle_job.py` checks).
-- dbt tasks: the `dbt_task` copies `project_directory` to `/tmp` before running, so every task
-  points at the whole `./dbt` folder (the shared `../utils` package must travel with it) and picks
-  its project with `--project-dir <project>`. Databricks names the profile it generates after the
-  root `dbt/dbt_project.yml` (`medallion`), so connecting commands pass `--profile medallion`.
-  Local `dbt parse` and CI cannot catch breakage here; only a Run does.
+  calling `medallion-run-ingestion` per active Ingestion → one `dbt_<system>` task per Source
+  System with dbt models, running `dbt build --select tag:<system>` (bronze → silver → gold, tests
+  in between). Each runs with `run_if: ALL_DONE`; the leaf `ingestions_succeeded` makes the Run fail
+  when any Ingestion failed. `tests/test_bundle_job.py` checks the generated tasks are up to date.
+- dbt tasks: `project_directory: ./dbt` is the project itself; Databricks names the profile it
+  generates after it (`medallion`), so no `--project-dir` / `--profile` flags. Local `dbt parse` and
+  CI cannot catch connection or runtime breakage here; only a Run does.
 - Deploy (`.github/workflows/deploy.yml`, on merge to `main`): Catalog Structure apply → secret
   scopes → CSV upload to `/Volumes/medallion_raw/sources/files/` → `bundle deploy`. No Run is
   triggered. GitHub environment `prod` holds `DATABRICKS_HOST` / `DATABRICKS_TOKEN`.
-- CI (PRs to `main` only): ruff, pytest, wheel build, config validation, `dbt parse` of every
-  project, `bundle validate`, Catalog Structure dry-run.
+- CI (PRs to `main` only): ruff, pytest, wheel build, config validation, `medallion-bundle-tasks
+  --check`, `dbt parse` of the project, `bundle validate`, Catalog Structure dry-run.
 
 ## dbt conventions
 
-- `models/sources/__sources_*.yml`, `models/staging/stg_*` views (casting/renaming, dedup in
-  bronze), `models/marts/*` incremental merge via `utils.incremental_join_where(ref(...), key)`,
-  which adds `etl_created_date` / `etl_updated_date`.
+- Per `models/<layer>/<system>/`: `staging/stg_<layer>_<system>__<table>` views (casting/renaming,
+  dedup in bronze) and `marts/<layer>_<system>__<table>`, which set `materialized` in `config()`
+  (incremental merge via `incremental_join_where(ref(...), key)`, adding `etl_created_date` /
+  `etl_updated_date`, or `table`). Bronze also holds `__sources.yml` for its Raw tables.
+- Model names are unique project-wide; `generate_alias_name` keeps the table name after `__`
+  (`bronze_weather__sao_paulo` → `sao_paulo`, staging → `stg_sao_paulo`), so tables never move.
+- Every `<layer>/<system>` folder needs `+schema: <system>` and `+tags: ["<system>"]` in
+  `dbt_project.yml`; the Layer sets `+database`. Without the tag the job never runs it (a test
+  checks).
 - Raw tracking columns are `_run_id` and `_ingested_at` only; tables written before the cutover may
   still carry a legacy `_ingestion_name`, which models must not select.
-- Bronze reads `source('{system}', ...)` from raw; silver reads `source('bronze_{system}', ...)`;
-  gold reads `source('silver_{system}', ...)`.
+- Bronze reads `source('{system}', ...)` from raw; silver and gold read the previous Layer with
+  `ref('<layer>_<system>__<table>')`, never `source()`, so lineage is one graph.
 
 ## Agent skills
 

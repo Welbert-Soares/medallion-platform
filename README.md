@@ -20,6 +20,9 @@ Paulo (API Open-Meteo), municípios do IBGE (CSV) e pedidos de um Postgres (JDBC
 - **Raw imutável.** Toda carga é apenas acrescentada e carimbada com a Run que a produziu;
   reprocessar gera duplicatas na raw de propósito, e a bronze deduplica com MERGE incremental. Assim
   qualquer camada pode ser reconstruída a partir da raw ([ADR 0002](docs/adr/0002-raw-is-append-only.md)).
+- **Uma linhagem só, da raw à gold.** Todas as Layers vivem num único projeto dbt ligado por
+  `ref()`, e o job roda uma tarefa por Source System gerada a partir do config
+  ([ADR 0006](docs/adr/0006-one-dbt-project-tagged-by-source-system.md)).
 - **Config e estado separados.** O espelho do YAML é sobrescrito a cada sync; o estado aprendido
   (Watermark, última Run) vive numa tabela à parte, escrita só pelo runtime
   ([ADR 0003](docs/adr/0003-ingestion-config-and-state-are-separate.md)).
@@ -69,7 +72,7 @@ A plataforma tem duas partes ([ADR 0005](docs/adr/0005-controller-and-medallion-
 
 - **Controller** declara, configura e registra: config, Catalog Structure, Ingestion State e o log
   de execução, no catálogo `medallion_controller`. Não guarda dado de negócio.
-- **Medallion** move e refina o dado: as Ingestions para a raw e, depois, os projetos dbt.
+- **Medallion** move e refina o dado: as Ingestions para a raw e, depois, o projeto dbt.
 
 O vocabulário (Source System, Ingestion, Watermark, Run, Layer…) está definido em
 [`CONTEXT.md`](CONTEXT.md).
@@ -82,13 +85,20 @@ pacote `medallion`, roda todo dia às 06:00:
 ```mermaid
 flowchart LR
     sync[sync_config] --> ingest["ingest<br/>(for-each nas Ingestions ativas)"]
-    ingest --> bi[dbt bronze_ibge] --> si[dbt silver_ibge]
-    ingest --> bw[dbt bronze_weather] --> sw[dbt silver_weather] --> gw[dbt gold_weather]
+    ingest --> di["dbt_ibge<br/>bronze → silver"]
+    ingest --> dw["dbt_weather<br/>bronze → silver → gold"]
     ingest --> ok[ingestions_succeeded]
 ```
 
+Cada tarefa dbt roda `dbt build --select tag:<source_system>` sobre um único projeto dbt
+([ADR 0006](docs/adr/0006-one-dbt-project-tagged-by-source-system.md)): as Layers daquele Source
+System em ordem, com os testes no meio. Um teste que falha na silver impede a gold da mesma fonte,
+e uma fonte com problema nunca bloqueia outra. As tarefas são geradas a partir do config por
+`make bundle`.
+
 Uma Run real no workspace: as duas Ingestions ativas rodam em paralelo no `ingest` (for-each), e
-cada Source System segue sua cadeia dbt até a gold.
+cada Source System segue sua cadeia dbt até a gold. (Print de antes da unificação do dbt, quando
+havia uma tarefa por Layer.)
 
 ![Grafo do job numa Run bem-sucedida no Databricks](docs/img/job-run.png)
 
@@ -130,7 +140,8 @@ Dois jobs em paralelo, separados pelo que precisam acessar:
 | `pytest` | os 129 testes dos casos de uso, com fakes no lugar de Spark e Databricks |
 | build do pacote | o `medallion` empacota de verdade |
 | `medallion-validate-config` | o YAML da plataforma é válido contra os modelos Pydantic (tipos, referências entre Ingestions e Connections) |
-| `dbt parse` em cada projeto | SQL e Jinja dos modelos dbt sem erro, usando um profile de mentira, sem conectar no warehouse |
+| `medallion-bundle-tasks --check` | as tarefas dbt geradas no `databricks.yml` batem com o config e as pastas de modelos |
+| `dbt parse` | SQL, Jinja e o grafo de `ref()` inteiro sem erro, usando um profile de mentira, sem conectar no warehouse |
 
 **`bundle`**: roda no ambiente `prod` do GitHub, com as credenciais do workspace.
 
@@ -170,8 +181,10 @@ Run agendada já usa a versão nova.
    `medallion_raw.<source_system>.<raw_table>`.
 3. Para bancos de dados, declare uma Connection e coloque a senha à mão: veja
    [`docs/connections.md`](docs/connections.md).
-4. Crie os projetos dbt `dbt/bronze_<system>`, `dbt/silver_<system>`… e as tarefas deles em
-   `databricks.yml`.
+4. Crie os modelos em `dbt/models/<layer>/<source_system>/` (comece pela bronze, com o
+   `__sources.yml` apontando para a raw) e registre a pasta em `dbt/dbt_project.yml` com
+   `+schema` e `+tags` iguais ao nome do Source System.
+5. Rode `make bundle`: a tarefa `dbt_<source_system>` entra no job sozinha.
 
 ## Desenvolvimento
 
@@ -180,6 +193,7 @@ make install    # ambiente de desenvolvimento
 make lint       # ruff, incluindo os limites de import
 make test       # pytest, sem cluster Spark
 make validate   # config + definição do bundle
+make bundle     # regenera as tarefas dbt do job a partir do config
 make plan       # diff da Catalog Structure contra o workspace (dry-run)
 make deploy     # apply + bundle deploy a partir da sua máquina (o CI faz isso no merge)
 ```
