@@ -5,14 +5,37 @@ models:
     description: "Municípios brasileiros — referência geográfica limpa e pronta para análise."
     columns:
       - name: codigo_ibge
-        description: "Código IBGE do município."
+        description: "Código IBGE do município (7 dígitos)."
         data_tests:
           - not_null
           - unique
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 1000000, max_value: 9999999}
       - name: nome
+        data_tests:
+          - not_null
       - name: uf
+        description: "Sigla do estado."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [AC, AL, AM, AP, BA, CE, DF, ES, GO, MA, MG, MS, MT, PA, PB, PE, PI,
+                         PR, RJ, RN, RO, RR, RS, SC, SE, SP, TO]
       - name: is_capital
+        data_tests:
+          - not_null
       - name: latitude
+        description: "Latitude em graus; dentro do território brasileiro."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments: {min_value: -34, max_value: 6}
       - name: longitude
+        description: "Longitude em graus; dentro do território brasileiro."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments: {min_value: -74, max_value: -28}
       - name: etl_created_date
       - name: etl_updated_date

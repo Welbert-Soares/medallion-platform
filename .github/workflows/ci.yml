@@ -60,7 +60,9 @@ jobs:
 
       - name: dbt parse (syntax + Jinja + the whole ref() graph, no DB connection)
         working-directory: dbt
-        run: dbt parse --profiles-dir ~/.dbt --no-use-colors
+        run: |
+          dbt deps --profiles-dir ~/.dbt --no-use-colors
+          dbt parse --profiles-dir ~/.dbt --no-use-colors
 
   bundle:
     # Needs workspace credentials, which GitHub never passes to PRs from forks or from Dependabot:

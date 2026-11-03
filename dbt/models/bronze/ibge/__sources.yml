@@ -5,6 +5,8 @@ sources:
     database: medallion_raw
     schema: ibge
     loader: generic_ingestion (controller)
+    # No freshness check: a static reference CSV whose Watermark is the file's fingerprint, so it
+    # only lands again when the file changes, and an old load is the normal state.
     description: |
       Dados de referência geográfica do IBGE.
       Ingestão com overwrite completo (tabela de referência estática).

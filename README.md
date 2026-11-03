@@ -29,8 +29,11 @@ Paulo (API Open-Meteo), municípios do IBGE (CSV) e pedidos de um Postgres (JDBC
 - **Arquitetura hexagonal com limites verificados.** Regras de negócio ficam em `controller` e
   `ingestion`, que não conhecem Spark; só `medallion.databricks` importa pyspark, databricks-sdk ou
   dbutils. O CI falha se alguém quebrar essa regra ([ADR 0005](docs/adr/0005-controller-and-medallion-are-separate-modules.md)).
-- **Testes sem cluster.** 129 testes rodam em ~2 s, sem Spark nem JVM, usando fakes das portas em
-  [`tests/fakes/`](tests/fakes/).
+- **Testes sem cluster.** 139 testes de Python rodam em ~2 s, sem Spark nem JVM, usando fakes das
+  portas em [`tests/fakes/`](tests/fakes/).
+- **Qualidade de dados verificada a cada Run.** 30 testes dbt (chaves, nulos, faixas físicas e
+  geográficas), um contrato de tipos na gold e um alarme de freshness na raw. Veja
+  [Qualidade de dados](#qualidade-de-dados) e a [documentação dbt publicada](https://welbert-soares.github.io/medallion-platform/).
 - **CI/CD de ponta a ponta no GitHub Actions.** Todo PR é validado em duas frentes: código, config e
   dbt sem credenciais, e o diff que seria aplicado no workspace real. Só o merge publica, como
   Databricks Asset Bundle versionado junto com o código ([ADR 0001](docs/adr/0001-databricks-asset-bundles.md)).
@@ -108,6 +111,28 @@ depois uma tarefa dbt por Source System, também em paralelo, leva cada fonte at
 O merge na `main` aplica a Catalog Structure, garante os secret scopes, envia os arquivos de origem
 para o Volume e publica o bundle. Ele **nunca** dispara uma Run.
 
+## Qualidade de dados
+
+Cada tarefa dbt roda `dbt deps`, `dbt build` (modelos e testes intercalados, na ordem do grafo) e,
+quando a fonte declara, `dbt source freshness`. Qualquer falha derruba a tarefa daquele Source System
+e, com ela, a Run.
+
+| Pergunta | Como é verificada |
+|---|---|
+| O dado chegou? | **Freshness** na raw do clima: aviso com 30 h sem carga nova, erro com 2 dias. O IBGE não tem, porque é um CSV estático que só é recarregado quando o arquivo muda. |
+| O valor é plausível? | **`accepted_range`** (dbt_utils): temperatura entre -10 e 50 °C, precipitação ≥ 0, coordenadas dentro do território brasileiro, código IBGE com 7 dígitos; **`accepted_values`** para as 27 UFs. |
+| A tabela é íntegra? | **`unique` + `not_null`** na chave de toda tabela de bronze, silver e gold, e `not_null` nas medidas. |
+| Quem consome pode confiar no formato? | **Contrato** (`contract: enforced`) na gold: nome, tipo e `NOT NULL` de cada coluna. Se o SQL mudar o formato, o build falha antes de gravar. |
+
+Um teste que falha na silver impede a gold da mesma fonte, porque o `dbt build` só segue no grafo
+depois dos testes do nó anterior.
+
+### Documentação e linhagem
+
+A cada deploy, o `dbt docs` é gerado contra o warehouse (com os tipos reais das colunas) e publicado
+no GitHub Pages: **[https://welbert-soares.github.io/medallion-platform/](https://welbert-soares.github.io/medallion-platform/)**. Lá estão a linhagem de cada tabela
+da raw até a gold, as colunas, as descrições e os testes.
+
 ## CI/CD com GitHub Actions
 
 Nada chega ao workspace sem passar pelo GitHub Actions. Um pull request só mostra o que **mudaria**; o
@@ -140,7 +165,7 @@ Dois jobs em paralelo, separados pelo que precisam acessar:
 | build do pacote | o `medallion` empacota de verdade |
 | `medallion-validate-config` | o YAML da plataforma é válido contra os modelos Pydantic (tipos, referências entre Ingestions e Connections) |
 | `medallion-bundle-tasks --check` | as tarefas dbt geradas no `databricks.yml` batem com o config e as pastas de modelos |
-| `dbt parse` | SQL, Jinja e o grafo de `ref()` inteiro sem erro, usando um profile de mentira, sem conectar no warehouse |
+| `dbt deps` + `dbt parse` | SQL, Jinja, testes e o grafo de `ref()` inteiro sem erro, usando um profile de mentira, sem conectar no warehouse |
 
 **`bundle`**: roda no ambiente `prod` do GitHub, com as credenciais do workspace.
 
@@ -158,6 +183,8 @@ Um job no ambiente `prod`, em ordem:
 3. **Garante os secret scopes** das Connections declaradas. Os valores são colocados à mão e nunca passam pelo CI ([Conexões](docs/connections.md)).
 4. **Envia os CSVs de origem** para o Volume `medallion_raw.sources.files`.
 5. **`databricks bundle deploy`:** publica o pacote e o job agendado ([ADR 0001](docs/adr/0001-databricks-asset-bundles.md)). Cada deploy gera uma versão única do pacote (`dynamic_version`), para o compute serverless nunca reaproveitar um pacote antigo do cache.
+
+6. **Documentação dbt:** gera o `dbt docs` contra o warehouse e publica no [GitHub Pages](https://welbert-soares.github.io/medallion-platform/), num job separado com permissão só para o Pages.
 
 O deploy **não dispara uma Run**: publicar código e processar dado são eventos separados. A próxima
 Run agendada já usa a versão nova.

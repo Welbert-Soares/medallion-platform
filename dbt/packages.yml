@@ -1,0 +1,4 @@
+packages:
+  # accepted_range and other generic tests; the job's dbt tasks run `dbt deps` first.
+  - package: dbt-labs/dbt_utils
+    version: [">=1.4.0", "<2.0.0"]

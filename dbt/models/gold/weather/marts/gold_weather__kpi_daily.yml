@@ -3,14 +3,50 @@ version: 2
 models:
   - name: gold_weather__kpi_daily
     description: "KPIs diários de temperatura e precipitação de São Paulo."
+    config:
+      # Contract for consumers: the build fails if a column's name or type drifts.
+      contract:
+        enforced: true
     columns:
       - name: reference_date
         description: "Data de referência."
+        data_type: date
+        constraints:
+          - type: not_null
         data_tests:
-          - not_null
           - unique
       - name: avg_temperature
+        description: "Temperatura média do dia em °C."
+        data_type: decimal(5,2)
+        constraints:
+          - type: not_null
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: -10, max_value: 50}
       - name: max_temperature
+        description: "Temperatura máxima do dia em °C."
+        data_type: decimal(5,2)
+        constraints:
+          - type: not_null
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: -10, max_value: 50}
       - name: min_temperature
+        description: "Temperatura mínima do dia em °C."
+        data_type: decimal(5,2)
+        constraints:
+          - type: not_null
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: -10, max_value: 50}
       - name: total_precipitation_mm
+        description: "Precipitação total do dia em mm."
+        data_type: decimal(8,2)
+        constraints:
+          - type: not_null
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0}
       - name: updated_at
+        description: "Quando a linha foi calculada."
+        data_type: timestamp

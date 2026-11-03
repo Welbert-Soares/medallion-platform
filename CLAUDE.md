@@ -61,15 +61,17 @@ the overview, the job diagram and the `make` targets.
 
 - Tasks: `sync_config` (also publishes the `active_ingestions` task value) → `ingest` for-each
   calling `medallion-run-ingestion` per active Ingestion → one `dbt_<system>` task per Source
-  System with dbt models, running `dbt build --select tag:<system>` (bronze → silver → gold, tests
-  in between). Each runs with `run_if: ALL_DONE`; the leaf `ingestions_succeeded` makes the Run fail
+  System with dbt models, running `dbt deps`, `dbt build --select tag:<system>` (bronze → silver →
+  gold, tests in between) and, if its Raw sources declare `freshness`, `dbt source freshness
+  --select source:<system>` last. Each runs with `run_if: ALL_DONE`; the leaf `ingestions_succeeded` makes the Run fail
   when any Ingestion failed. `tests/test_bundle_job.py` checks the generated tasks are up to date.
 - dbt tasks: `project_directory: ./dbt` is the project itself; Databricks names the profile it
   generates after it (`medallion`), so no `--project-dir` / `--profile` flags. Local `dbt parse` and
   CI cannot catch connection or runtime breakage here; only a Run does.
 - Deploy (`.github/workflows/deploy.yml`, on merge to `main`): Catalog Structure apply → secret
-  scopes → CSV upload to `/Volumes/medallion_raw/sources/files/` → `bundle deploy`. No Run is
-  triggered. GitHub environment `prod` holds `DATABRICKS_HOST` / `DATABRICKS_TOKEN`.
+  scopes → CSV upload to `/Volumes/medallion_raw/sources/files/` → `bundle deploy`; then `docs`
+  (`dbt docs generate --static` against the warehouse) → `publish-docs` (GitHub Pages, its own
+  `github-pages` environment with only `pages`/`id-token` write). No Run is triggered. GitHub environment `prod` holds `DATABRICKS_HOST` / `DATABRICKS_TOKEN`.
 - CI (PRs to `main` only): ruff, pytest, wheel build, config validation, `medallion-bundle-tasks
   --check`, `dbt parse` of the project, `bundle validate`, Catalog Structure dry-run.
 
@@ -88,6 +90,16 @@ the overview, the job diagram and the `make` targets.
   still carry a legacy `_ingestion_name`, which models must not select.
 - Bronze reads `source('{system}', ...)` from raw; silver and gold read the previous Layer with
   `ref('<layer>_<system>__<table>')`, never `source()`, so lineage is one graph.
+- Data tests: `unique` + `not_null` on every mart key, `not_null` on measures, `dbt_utils.
+  accepted_range` / `accepted_values` for plausible values. Generic test args go under
+  `arguments:` (dbt ≥1.10 syntax). Check new tests against real data before adding them.
+- Gold marts are `contract: enforced`: every column has `data_type` (+ `not_null` constraints) and
+  the SQL casts to those types explicitly.
+- Freshness lives in `config:` of a bronze `__sources.yml` (`loaded_at_field: _ingested_at`); only
+  for sources that land every Run. Static reference files (ibge) have none.
+- `dbt_utils` is pinned by `dbt/package-lock.yml`; `dbt deps` before parse/build.
+- Local runs: `dbt/` may hold a personal, git-ignored `profiles.yml`; dbt reads it before
+  `~/.dbt`, so pass `--profiles-dir` when using another profile.
 
 ## Agent skills
 
