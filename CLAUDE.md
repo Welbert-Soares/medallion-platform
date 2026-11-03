@@ -69,9 +69,15 @@ the overview, the job diagram and the `make` targets.
   generates after it (`medallion`), so no `--project-dir` / `--profile` flags. Local `dbt parse` and
   CI cannot catch connection or runtime breakage here; only a Run does.
 - Deploy (`.github/workflows/deploy.yml`, on merge to `main`): Catalog Structure apply → secret
-  scopes → CSV upload to `/Volumes/medallion_raw/sources/files/` → `bundle deploy`; then `docs`
-  (`dbt docs generate --static` against the warehouse) → `publish-docs` (GitHub Pages, its own
-  `github-pages` environment with only `pages`/`id-token` write). No Run is triggered. GitHub environment `prod` holds `DATABRICKS_HOST` / `DATABRICKS_TOKEN`.
+  scopes → CSV upload to `/Volumes/medallion_raw/sources/files/` → `bundle deploy`; then calls
+  `site.yml`. No Run is triggered.
+- Site (`.github/workflows/site.yml`; after every deploy, daily at 06:30 BRT, or by hand): `dbt docs
+  generate --static` + `medallion-export-metrics` (`metrics.json` from `run_metrics`) → GitHub Pages
+  (`github-pages` environment, only `pages`/`id-token` write). On the schedule it fails when no Run
+  finished in 26 h: the external heartbeat (ADR 0007).
+- `dbt_platform` (hand-written, outside the generated block): builds `tag:platform` after `ingest`
+  with `ALL_DONE`. `gold.platform` is a Layer schema in `catalog_structure.yml`, not a Source
+  System; model folders must be one or the other (a test checks). GitHub environment `prod` holds `DATABRICKS_HOST` / `DATABRICKS_TOKEN`.
 - CI (PRs to `main` only): ruff, pytest, wheel build, config validation, `medallion-bundle-tasks
   --check`, `dbt parse` of the project, `bundle validate`, Catalog Structure dry-run.
 
