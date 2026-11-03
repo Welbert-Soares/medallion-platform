@@ -1,7 +1,67 @@
-# Not a dbt project to run: it only names the profile Databricks generates for the job's dbt tasks.
-# Each dbt_task copies the whole dbt/ folder (so the shared ../utils package travels with it), runs
-# with --project-dir <project>, and reads the generated profile's name from this file. Every
-# command that connects passes --profile medallion.
+# One dbt project for every Layer and Source System (ADR 0006), so the whole platform is one
+# lineage graph: bronze reads Raw through source(), and each later Layer reads the previous one
+# through ref(). Databricks names the profile it generates for the job's dbt tasks after this
+# project ('medallion').
+#
+# Layout: models/<layer>/<source system>/{staging,marts}/. Each Layer sets its catalog; each
+# Source System sets its schema and the tag the job selects it by (dbt build --select tag:<system>).
+# Model names carry the Layer and Source System to stay unique; the generate_alias_name macro
+# strips that prefix, so tables keep their names: bronze_weather__sao_paulo → sao_paulo.
 name: 'medallion'
 version: '1.0.0'
 profile: 'medallion'
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+flags:
+  use_materialization_v2: true
+  use_managed_iceberg: true
+
+models:
+  medallion:
+    # Staging models are views; marts set their own materialization in config().
+    +materialized: view
+    +incremental_strategy: merge
+    +on_schema_change: append_new_columns
+    +file_format: delta
+    +persist_docs:
+      relation: true
+      columns: true
+    +tblproperties:
+      delta.logRetentionDuration: "7 days"
+      delta.deletedFileRetentionDuration: "7 days"
+
+    bronze:
+      +database: medallion_bronze
+      ibge:
+        +schema: ibge
+        +tags: ["ibge"]
+        +databricks_tags: {project: bronze_ibge}
+      weather:
+        +schema: weather
+        +tags: ["weather"]
+        +databricks_tags: {project: bronze_weather}
+
+    silver:
+      +database: medallion_silver
+      ibge:
+        +schema: ibge
+        +tags: ["ibge"]
+        +databricks_tags: {project: silver_ibge}
+      weather:
+        +schema: weather
+        +tags: ["weather"]
+        +databricks_tags: {project: silver_weather}
+
+    gold:
+      +database: medallion_gold
+      weather:
+        +schema: weather
+        +tags: ["weather"]
+        +databricks_tags: {project: gold_weather}

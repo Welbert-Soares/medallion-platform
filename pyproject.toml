@@ -27,6 +27,7 @@ dev = [
 
 [project.scripts]
 medallion-validate-config = "medallion.controller.config.validate:main"
+medallion-bundle-tasks = "medallion.controller.bundle_tasks:main"
 medallion-catalog-structure = "medallion.databricks.catalog_structure_cli:main"
 medallion-sync-config = "medallion.databricks.sync_config_task:main"
 medallion-run-ingestion = "medallion.databricks.run_ingestion_task:main"

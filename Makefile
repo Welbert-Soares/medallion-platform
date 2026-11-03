@@ -5,7 +5,7 @@ export
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 CONFIG ?= config/platform
 
-.PHONY: install lint test validate plan deploy
+.PHONY: install lint test validate bundle plan deploy
 
 install:  ## dev environment: package + pytest, ruff, pyspark, dbt, databricks-sdk
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -19,6 +19,9 @@ test:  ## pytest (no Spark cluster or JVM needed)
 validate:  ## config (load_config) + bundle definition
 	$(PYTHON) -m medallion.controller.config.validate $(CONFIG)
 	databricks bundle validate --target prod
+
+bundle:  ## regenerate the job's dbt tasks in databricks.yml (one per Source System, ADR 0006)
+	$(PYTHON) -m medallion.controller.bundle_tasks --config-dir $(CONFIG)
 
 plan:  ## Catalog Structure dry-run against the workspace: prints the diff, changes nothing
 	$(PYTHON) -m medallion.databricks.catalog_structure_cli $(CONFIG)

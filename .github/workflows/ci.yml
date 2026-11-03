@@ -38,33 +38,29 @@ jobs:
       - name: Validate platform config (load_config)
         run: medallion-validate-config config/platform
 
-      - name: Configure dbt profile
+      - name: Job dbt tasks up to date (make bundle)
+        run: medallion-bundle-tasks --check
+
+      - name: Configure dbt profile (placeholder, parse never connects)
         run: |
           mkdir -p ~/.dbt
-          python3 - << 'EOF'
-          import pathlib
-          p = pathlib.Path.home() / ".dbt" / "profiles.yml"
-          profiles = ""
-          for project, catalog, schema in [
-              ("bronze_weather", "medallion_bronze", "weather"),
-              ("bronze_ibge",    "medallion_bronze", "ibge"),
-              ("silver_weather", "medallion_silver", "weather"),
-              ("silver_ibge",    "medallion_silver", "ibge"),
-              ("gold_weather",   "medallion_gold",   "weather"),
-          ]:
-              profiles += f"{project}:\n  target: ci\n  outputs:\n    ci:\n      type: databricks\n      host: placeholder\n      http_path: placeholder\n      token: placeholder\n      catalog: {catalog}\n      schema: {schema}\n      threads: 1\n"
-          p.write_text(profiles)
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          medallion:
+            target: ci
+            outputs:
+              ci:
+                type: databricks
+                host: placeholder
+                http_path: placeholder
+                token: placeholder
+                catalog: medallion_bronze
+                schema: ci
+                threads: 1
           EOF
 
-      - name: dbt parse (syntax + Jinja validation, no DB connection)
-        run: |
-          for project in bronze_weather bronze_ibge silver_weather silver_ibge gold_weather; do
-            echo "=== parsing $project ==="
-            cd dbt/$project
-            dbt deps --profiles-dir ~/.dbt --no-use-colors
-            dbt parse --profiles-dir ~/.dbt --no-use-colors
-            cd ../..
-          done
+      - name: dbt parse (syntax + Jinja + the whole ref() graph, no DB connection)
+        working-directory: dbt
+        run: dbt parse --profiles-dir ~/.dbt --no-use-colors
 
   bundle:
     # Needs workspace credentials, which GitHub never passes to PRs from forks:

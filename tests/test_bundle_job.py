@@ -1,56 +1,61 @@
-"""Shape of the bundle job: dbt chains per Source System, isolated, running after Ingestions."""
+"""Shape of the bundle job: one dbt task per Source System, isolated, running after Ingestions."""
 
 from pathlib import Path
 
 import yaml
 
+from medallion.controller.bundle_tasks import main as bundle_tasks
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 JOB = yaml.safe_load((REPO_ROOT / "databricks.yml").read_text())["resources"]["jobs"]["medallion"]
 TASKS = {t["task_key"]: t for t in JOB["tasks"]}
-DBT_PROJECTS = sorted(p.parent.name for p in (REPO_ROOT / "dbt").glob("*/dbt_project.yml")
-                      if p.parent.name != "utils")
+DBT = REPO_ROOT / "dbt"
+DBT_PROJECT = yaml.safe_load((DBT / "dbt_project.yml").read_text())
+SYSTEMS_WITH_MODELS = sorted(p.name for p in (DBT / "models" / "bronze").iterdir() if p.is_dir())
 
 
 def upstream(task_key: str) -> list[str]:
     return [d["task_key"] for d in TASKS[task_key].get("depends_on", [])]
 
 
-def test_every_dbt_project_has_a_native_dbt_task():
+def test_generated_dbt_tasks_are_up_to_date(monkeypatch):
+    monkeypatch.chdir(REPO_ROOT)
+
+    assert bundle_tasks(["--check"]) == 0, "run `make bundle`"
+
+
+def test_every_source_system_with_models_has_one_dbt_task():
     dbt_tasks = {k: t for k, t in TASKS.items() if "dbt_task" in t}
 
-    assert sorted(dbt_tasks) == [f"dbt_{p}" for p in DBT_PROJECTS]
+    assert sorted(dbt_tasks) == [f"dbt_{s}" for s in SYSTEMS_WITH_MODELS]
     for key, task in dbt_tasks.items():
-        project = key.removeprefix("dbt_")
-        # The whole dbt/ folder, so the shared ../utils package is copied along with the project.
+        system = key.removeprefix("dbt_")
+        # The single project at the root of dbt/, whose name ('medallion') names the profile
+        # Databricks generates: no --project-dir or --profile needed.
         assert task["dbt_task"]["project_directory"] == "./dbt"
-        assert task["dbt_task"]["commands"] == [
-            f"dbt deps --project-dir {project}",
-            f"dbt build --project-dir {project} --profile medallion"]
+        assert task["dbt_task"]["commands"] == [f"dbt build --select tag:{system}"]
         assert task["dbt_task"]["warehouse_id"] == "${var.warehouse_id}"
 
 
-def test_root_dbt_project_names_the_generated_profile():
-    root = yaml.safe_load((REPO_ROOT / "dbt" / "dbt_project.yml").read_text())
-
-    assert root["profile"] == "medallion"
-
-
-def test_bronze_runs_after_ingestions_even_when_one_failed():
-    for project in DBT_PROJECTS:
-        if project.startswith("bronze_"):
-            assert upstream(f"dbt_{project}") == ["ingest"]
-            assert TASKS[f"dbt_{project}"]["run_if"] == "ALL_DONE"
+def test_dbt_runs_after_ingestions_even_when_one_failed():
+    for system in SYSTEMS_WITH_MODELS:
+        assert upstream(f"dbt_{system}") == ["ingest"]
+        assert TASKS[f"dbt_{system}"]["run_if"] == "ALL_DONE"
 
 
-def test_layers_chain_within_each_source_system_only():
-    for project in DBT_PROJECTS:
-        layer, system = project.split("_", 1)
-        if layer == "silver":
-            assert upstream(f"dbt_{project}") == [f"dbt_bronze_{system}"]
-        if layer == "gold":
-            assert upstream(f"dbt_{project}") == [f"dbt_silver_{system}"]
-        if layer != "bronze":
-            assert "run_if" not in TASKS[f"dbt_{project}"]  # a failed upstream layer stops here
+def test_dbt_project_names_the_generated_profile():
+    assert DBT_PROJECT["name"] == DBT_PROJECT["profile"] == "medallion"
+
+
+def test_every_model_folder_is_tagged_and_scheduled_by_its_source_system():
+    """The task selects by tag: a Layer folder without the tag would silently never run."""
+    models = DBT_PROJECT["models"]["medallion"]
+    for layer_dir in (DBT / "models").iterdir():
+        for system_dir in (p for p in layer_dir.iterdir() if p.is_dir()):
+            config = models[layer_dir.name][system_dir.name]
+            assert config["+tags"] == [system_dir.name], f"{layer_dir.name}/{system_dir.name}"
+            assert config["+schema"] == system_dir.name, f"{layer_dir.name}/{system_dir.name}"
+            assert system_dir.name in SYSTEMS_WITH_MODELS, f"{system_dir.name} has no bronze models"
 
 
 def test_failed_ingestion_fails_the_run_through_a_leaf_task():
