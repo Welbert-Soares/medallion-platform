@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: controller
+    database: medallion_controller
+    schema: controller
+    loader: medallion runtime (run_ingestion)
+    description: "Tabelas do Controller: o registro de cada Ingestion Run, escrito pelo runtime."
+
+    tables:
+      - name: execution_log
+        description: "Uma linha por Ingestion Run: status, linhas lidas e escritas, Watermark e duração."

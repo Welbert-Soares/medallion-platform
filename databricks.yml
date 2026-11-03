@@ -101,6 +101,21 @@ resources:
             schema: ibge
         # END GENERATED dbt tasks
 
+        # Platform metrics (medallion_gold.platform.run_metrics) from the Controller's execution
+        # log. Runs after the Ingestions even when one failed, so failed Runs are measured too.
+        # Not a Source System, so it is written here instead of generated.
+        - task_key: dbt_platform
+          depends_on:
+            - task_key: ingest
+          run_if: ALL_DONE
+          environment_key: dbt
+          dbt_task:
+            project_directory: ./dbt
+            commands: ["dbt deps", "dbt build --select tag:platform"]
+            warehouse_id: ${var.warehouse_id}
+            catalog: medallion_gold
+            schema: platform
+
       environments:
         - environment_key: medallion
           spec:

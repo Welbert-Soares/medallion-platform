@@ -61,6 +61,11 @@ models:
 
     gold:
       +database: medallion_gold
+      # Not a Source System: a declared gold schema (catalog_structure.yml) with its own job task.
+      platform:
+        +schema: platform
+        +tags: ["platform"]
+        +databricks_tags: {project: gold_platform}
       weather:
         +schema: weather
         +tags: ["weather"]

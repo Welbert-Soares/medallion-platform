@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 from medallion.controller.bundle_tasks import main as bundle_tasks
+from medallion.controller.config.loader import load_config
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 JOB = yaml.safe_load((REPO_ROOT / "databricks.yml").read_text())["resources"]["jobs"]["medallion"]
@@ -12,6 +13,9 @@ TASKS = {t["task_key"]: t for t in JOB["tasks"]}
 DBT = REPO_ROOT / "dbt"
 DBT_PROJECT = yaml.safe_load((DBT / "dbt_project.yml").read_text())
 SYSTEMS_WITH_MODELS = sorted(p.name for p in (DBT / "models" / "bronze").iterdir() if p.is_dir())
+STRUCTURE = load_config(REPO_ROOT / "config" / "platform").catalog_structure
+# Model folders that are not Source Systems but schemas declared on a Layer (e.g. gold.platform).
+LAYER_SCHEMAS = {(layer.name, schema.name) for layer in STRUCTURE.layers for schema in layer.schemas}
 
 
 def upstream(task_key: str) -> list[str]:
@@ -25,7 +29,8 @@ def test_generated_dbt_tasks_are_up_to_date(monkeypatch):
 
 
 def test_every_source_system_with_models_has_one_dbt_task():
-    dbt_tasks = {k: t for k, t in TASKS.items() if "dbt_task" in t}
+    dbt_tasks = {k: t for k, t in TASKS.items()
+                 if "dbt_task" in t and k.removeprefix("dbt_") in SYSTEMS_WITH_MODELS}
 
     assert sorted(dbt_tasks) == [f"dbt_{s}" for s in SYSTEMS_WITH_MODELS]
     for key, task in dbt_tasks.items():
@@ -49,15 +54,29 @@ def test_dbt_project_names_the_generated_profile():
     assert DBT_PROJECT["name"] == DBT_PROJECT["profile"] == "medallion"
 
 
-def test_every_model_folder_is_tagged_and_scheduled_by_its_source_system():
-    """The task selects by tag: a Layer folder without the tag would silently never run."""
+def test_every_model_folder_is_tagged_and_scheduled():
+    """Tasks select by tag: a folder without the tag, or without a task, would never run."""
     models = DBT_PROJECT["models"]["medallion"]
     for layer_dir in (DBT / "models").iterdir():
-        for system_dir in (p for p in layer_dir.iterdir() if p.is_dir()):
-            config = models[layer_dir.name][system_dir.name]
-            assert config["+tags"] == [system_dir.name], f"{layer_dir.name}/{system_dir.name}"
-            assert config["+schema"] == system_dir.name, f"{layer_dir.name}/{system_dir.name}"
-            assert system_dir.name in SYSTEMS_WITH_MODELS, f"{system_dir.name} has no bronze models"
+        for folder in (p for p in layer_dir.iterdir() if p.is_dir()):
+            where = f"{layer_dir.name}/{folder.name}"
+            config = models[layer_dir.name][folder.name]
+            assert config["+tags"] == [folder.name], where
+            assert config["+schema"] == folder.name, where
+            assert (folder.name in SYSTEMS_WITH_MODELS
+                    or (layer_dir.name, folder.name) in LAYER_SCHEMAS), (
+                f"{where}: neither a Source System with bronze models nor a declared Layer schema")
+            assert f"dbt build --select tag:{folder.name}" in TASKS[f"dbt_{folder.name}"][
+                "dbt_task"]["commands"], where
+
+
+def test_platform_metrics_are_built_after_every_ingest_even_a_failed_one():
+    task = TASKS["dbt_platform"]
+
+    assert ("gold", "platform") in LAYER_SCHEMAS
+    assert upstream("dbt_platform") == ["ingest"]
+    assert task["run_if"] == "ALL_DONE"
+    assert task["dbt_task"]["commands"] == ["dbt deps", "dbt build --select tag:platform"]
 
 
 def test_freshness_runs_only_where_raw_declares_it():
