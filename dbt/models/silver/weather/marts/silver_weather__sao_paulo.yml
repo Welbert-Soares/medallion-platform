@@ -11,8 +11,16 @@ models:
           - unique
       - name: temperature_celsius
         description: "Temperatura a 2m do solo em °C."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments: {min_value: -10, max_value: 50}
       - name: precipitation_mm
         description: "Precipitação acumulada no período em mm."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0}
       - name: latitude
       - name: longitude
       - name: station_id

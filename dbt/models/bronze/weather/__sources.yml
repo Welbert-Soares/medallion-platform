@@ -5,6 +5,14 @@ sources:
     database: medallion_raw
     schema: weather
     loader: generic_ingestion (controller)
+    config:
+      # The job runs daily and each Run appends the next day of data, so a raw table that
+      # has not grown in 2 days means Ingestions stopped landing. Checked after `dbt build`
+      # by `dbt source freshness`, which fails the task (and the Run) on error.
+      loaded_at_field: _ingested_at
+      freshness:
+        warn_after: {count: 30, period: hour}
+        error_after: {count: 2, period: day}
     description: |
       Dados de previsão horária do tempo para São Paulo via Open Meteo API.
       Ingestão diária com append incremental via watermark na coluna `time`.

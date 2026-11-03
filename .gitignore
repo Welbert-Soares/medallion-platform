@@ -13,7 +13,7 @@
 Databricks Controller/
 Azure Airflow/
 
-# dbt — multi-project (each project has its own target/dbt_packages/logs)
+# dbt (single project in dbt/, ADR 0006)
 target/
 dbt_packages/
 logs/
