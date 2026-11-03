@@ -86,8 +86,12 @@ flowchart LR
     ingest --> ok[ingestions_succeeded]
 ```
 
-<!-- Prints do workspace (adicionar em docs/img/):
-![Grafo do job numa Run bem-sucedida](docs/img/job-run.png)
+Uma Run real no workspace: as duas Ingestions ativas rodam em paralelo no `ingest` (for-each), e
+cada Source System segue sua cadeia dbt até a gold.
+
+![Grafo do job numa Run bem-sucedida no Databricks](docs/img/job-run.png)
+
+<!-- Print a adicionar em docs/img/:
 ![Catálogos medallion_* no Catalog Explorer](docs/img/catalog-explorer.png)
 -->
 
