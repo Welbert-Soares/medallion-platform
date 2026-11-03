@@ -67,6 +67,9 @@ jobs:
           done
 
   bundle:
+    # Needs workspace credentials, which GitHub never passes to PRs from forks:
+    # run only for branches of this repository instead of failing on every fork PR.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: prod
 
@@ -86,7 +89,7 @@ jobs:
         run: pip install ".[databricks]"
 
       - name: Install Databricks CLI
-        uses: databricks/setup-cli@main
+        uses: databricks/setup-cli@9625fdde9ba2607df0087e0d3ec7449198bf2180 # v1.23.0
 
       - name: Validate bundle
         run: databricks bundle validate --target prod

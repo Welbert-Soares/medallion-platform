@@ -148,6 +148,16 @@ Um job no ambiente `prod`, em ordem:
 O deploy **não dispara uma Run**: publicar código e processar dado são eventos separados. A próxima
 Run agendada já usa a versão nova.
 
+### Segurança da pipeline
+
+- **Credenciais só no ambiente `prod`** do GitHub, e só nos jobs que falam com o workspace.
+- **Actions de terceiros fixadas por commit**, não por branch: o deploy roda com o token do
+  workspace no ambiente, então uma mudança na action só entra depois de revisada. O
+  [Dependabot](.github/dependabot.yml) abre um PR semanal quando sai uma versão nova.
+- **PRs de fork não acessam o workspace.** O GitHub não entrega secrets a eles, e o job `bundle`
+  roda só para branches deste repositório; o `validate`, que não precisa de credenciais, roda para
+  todos.
+
 ## Adicionando uma fonte
 
 1. Declare o Source System em [`config/platform/catalog_structure.yml`](config/platform/catalog_structure.yml)

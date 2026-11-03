@@ -32,7 +32,7 @@ jobs:
         run: pip install ".[databricks]"
 
       - name: Install Databricks CLI
-        uses: databricks/setup-cli@main
+        uses: databricks/setup-cli@9625fdde9ba2607df0087e0d3ec7449198bf2180 # v1.23.0
 
       - name: Check secrets
         run: |
