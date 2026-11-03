@@ -35,6 +35,9 @@ layers:
     grants:
       - principal: account users
         privileges: [BROWSE]
+    schemas:
+      - name: platform
+        comment: "The platform observing itself: metrics over the Controller's execution log"
 
 controller:
   catalog: medallion_controller

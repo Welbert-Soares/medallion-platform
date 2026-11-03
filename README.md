@@ -29,11 +29,14 @@ Paulo (API Open-Meteo), municípios do IBGE (CSV) e pedidos de um Postgres (JDBC
 - **Arquitetura hexagonal com limites verificados.** Regras de negócio ficam em `controller` e
   `ingestion`, que não conhecem Spark; só `medallion.databricks` importa pyspark, databricks-sdk ou
   dbutils. O CI falha se alguém quebrar essa regra ([ADR 0005](docs/adr/0005-controller-and-medallion-are-separate-modules.md)).
-- **Testes sem cluster.** 139 testes de Python rodam em ~2 s, sem Spark nem JVM, usando fakes das
+- **Testes sem cluster.** 148 testes de Python rodam em ~2 s, sem Spark nem JVM, usando fakes das
   portas em [`tests/fakes/`](tests/fakes/).
-- **Qualidade de dados verificada a cada Run.** 30 testes dbt (chaves, nulos, faixas físicas e
+- **Qualidade de dados verificada a cada Run.** 34 testes dbt (chaves, nulos, faixas físicas e
   geográficas), um contrato de tipos na gold e um alarme de freshness na raw. Veja
   [Qualidade de dados](#qualidade-de-dados) e a [documentação dbt publicada](https://welbert-soares.github.io/medallion-platform/).
+- **Observabilidade de fora para dentro.** As Runs viram métricas num modelo dbt, publicadas
+  diariamente num [`metrics.json`](https://welbert-soares.github.io/medallion-platform/metrics.json),
+  e um heartbeat no GitHub Actions avisa quando o job deixa de rodar. Veja [Observabilidade](#observabilidade).
 - **CI/CD de ponta a ponta no GitHub Actions.** Todo PR é validado em duas frentes: código, config e
   dbt sem credenciais, e o diff que seria aplicado no workspace real. Só o merge publica, como
   Databricks Asset Bundle versionado junto com o código ([ADR 0001](docs/adr/0001-databricks-asset-bundles.md)).
@@ -90,6 +93,7 @@ flowchart LR
     sync[sync_config] --> ingest["ingest<br/>(for-each nas Ingestions ativas)"]
     ingest --> di["dbt_ibge<br/>bronze → silver"]
     ingest --> dw["dbt_weather<br/>bronze → silver → gold"]
+    ingest --> dp["dbt_platform<br/>métricas da Run"]
     ingest --> ok[ingestions_succeeded]
 ```
 
@@ -129,9 +133,25 @@ depois dos testes do nó anterior.
 
 ### Documentação e linhagem
 
-A cada deploy, o `dbt docs` é gerado contra o warehouse (com os tipos reais das colunas) e publicado
-no GitHub Pages: **[https://welbert-soares.github.io/medallion-platform/](https://welbert-soares.github.io/medallion-platform/)**. Lá estão a linhagem de cada tabela
-da raw até a gold, as colunas, as descrições e os testes.
+A cada deploy e todo dia depois da Run, o `dbt docs` é gerado contra o warehouse (com os tipos reais
+das colunas) e publicado no GitHub Pages: **[https://welbert-soares.github.io/medallion-platform/](https://welbert-soares.github.io/medallion-platform/)**. Lá estão a
+linhagem de cada tabela da raw até a gold, as colunas, as descrições e os testes.
+
+## Observabilidade
+
+A plataforma mede a si mesma com as próprias ferramentas
+([ADR 0007](docs/adr/0007-platform-metrics-and-external-heartbeat.md)):
+
+- **`medallion_gold.platform.run_metrics`:** um modelo dbt sobre o `execution_log` do Controller,
+  com uma linha por Run (Ingestions executadas, com sucesso, puladas e com falha, linhas escritas,
+  duração). A tarefa `dbt_platform` o reconstrói depois de toda ingestão, inclusive das que falham.
+- **[`metrics.json`](https://welbert-soares.github.io/medallion-platform/metrics.json):** publicado no GitHub Pages pelo workflow
+  [`site.yml`](.github/workflows/site.yml), todo dia às 06:30, com o formato da plataforma (fontes,
+  Ingestions ativas, modelos e testes dbt) e o histórico das Runs. É de onde o portfólio lê os números.
+- **Heartbeat externo:** os testes e a freshness rodam dentro do job, então não percebem o job **não
+  rodar**. O mesmo workflow falha quando não houve Run nas últimas 26 horas, e o GitHub avisa por
+  e-mail. Foi assim que apareceu um buraco real: de 08/10 a 02/11, o agendamento não disparou nenhuma
+  Run.
 
 ## CI/CD com GitHub Actions
 
@@ -184,7 +204,7 @@ Um job no ambiente `prod`, em ordem:
 4. **Envia os CSVs de origem** para o Volume `medallion_raw.sources.files`.
 5. **`databricks bundle deploy`:** publica o pacote e o job agendado ([ADR 0001](docs/adr/0001-databricks-asset-bundles.md)). Cada deploy gera uma versão única do pacote (`dynamic_version`), para o compute serverless nunca reaproveitar um pacote antigo do cache.
 
-6. **Documentação dbt:** gera o `dbt docs` contra o warehouse e publica no [GitHub Pages](https://welbert-soares.github.io/medallion-platform/), num job separado com permissão só para o Pages.
+6. **Site:** chama o [`site.yml`](.github/workflows/site.yml), que gera o `dbt docs` e o `metrics.json` e publica no [GitHub Pages](https://welbert-soares.github.io/medallion-platform/), num job com permissão só para o Pages. O mesmo workflow roda sozinho todo dia às 06:30.
 
 O deploy **não dispara uma Run**: publicar código e processar dado são eventos separados. A próxima
 Run agendada já usa a versão nova.

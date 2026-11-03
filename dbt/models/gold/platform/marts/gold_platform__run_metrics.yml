@@ -1,0 +1,59 @@
+version: 2
+
+models:
+  - name: gold_platform__run_metrics
+    description: "Métricas de cada Run da plataforma, a partir do log de execução do Controller."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: run_id
+        description: "Run do job no Databricks."
+        data_type: bigint
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+      - name: started_at
+        description: "Início da primeira Ingestion Run."
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      - name: finished_at
+        description: "Fim da última Ingestion Run."
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      - name: ingest_seconds
+        description: "Soma da duração das Ingestion Runs, em segundos (elas rodam em paralelo)."
+        data_type: decimal(10,1)
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0}
+      - name: ingestion_runs
+        data_type: bigint
+        constraints:
+          - type: not_null
+      - name: succeeded
+        data_type: bigint
+      - name: skipped
+        data_type: bigint
+      - name: failed
+        data_type: bigint
+      - name: rows_read
+        data_type: bigint
+      - name: rows_written
+        description: "Linhas escritas na raw pela Run."
+        data_type: bigint
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments: {min_value: 0}
+      - name: status
+        description: "failed se alguma Ingestion falhou; success caso contrário."
+        data_type: string
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [success, failed]

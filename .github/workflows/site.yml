@@ -1,0 +1,107 @@
+name: Site
+
+# Publishes https://welbert-soares.github.io/medallion-platform/: the dbt docs (lineage, columns,
+# tests) and metrics.json (platform shape and Run history, read by the portfolio).
+#
+# Called by deploy.yml after every deploy, and runs daily after the 06:00 Run so the metrics and
+# the column types in the docs follow the tables. The daily run is also the platform's external
+# heartbeat: the job's own checks can't see the job not running, so it fails (after publishing)
+# when no Run happened in the last 26 hours, and GitHub emails the failure.
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 9 * * *"  # 06:30 America/Sao_Paulo, after the job's 06:00 Run
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: prod
+    outputs:
+      stale: ${{ steps.metrics.outputs.stale }}
+
+    env:
+      DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install medallion and dbt (same range as the job's dbt environment)
+        run: pip install ".[databricks]" "dbt-databricks>=1.10,<2.0"
+
+      - name: SQL warehouse of the job's dbt tasks
+        id: warehouse
+        run: |
+          echo "id=$(python3 -c "import yaml; print(yaml.safe_load(open('databricks.yml'))['variables']['warehouse_id']['default'])")" >> "$GITHUB_OUTPUT"
+
+      - name: dbt profile for that warehouse
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << EOF
+          medallion:
+            target: docs
+            outputs:
+              docs:
+                type: databricks
+                host: ${DATABRICKS_HOST#https://}
+                http_path: /sql/1.0/warehouses/${{ steps.warehouse.outputs.id }}
+                token: "{{ env_var('DATABRICKS_TOKEN') }}"
+                catalog: medallion_bronze
+                schema: docs
+                threads: 4
+          EOF
+
+      - name: dbt docs generate (single static page)
+        working-directory: dbt
+        run: |
+          dbt deps --no-use-colors
+          dbt docs generate --static --no-use-colors
+          mkdir -p ../site && cp target/static_index.html ../site/index.html
+
+      - name: metrics.json
+        id: metrics
+        run: >-
+          medallion-export-metrics
+          --warehouse-id ${{ steps.warehouse.outputs.id }}
+          --manifest dbt/target/manifest.json
+          --out site/metrics.json
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # One Pages deployment at a time (a deploy and the daily run could overlap).
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  heartbeat:
+    # Only on the daily schedule: a deploy after a quiet period is not an incident.
+    needs: [build, publish]
+    if: github.event_name == 'schedule' && needs.build.outputs.stale == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: The platform has not run in the last 26 hours
+        run: |
+          echo "::error::No Run of the medallion job in the last 26 hours: check the job's schedule in the workspace. metrics.json has the last Run."
+          exit 1

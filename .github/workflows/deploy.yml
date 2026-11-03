@@ -64,67 +64,12 @@ jobs:
       - name: Deploy bundle (medallion wheel + scheduled job, no Run)
         run: databricks bundle deploy --target prod
 
-  # dbt docs (lineage raw → gold, columns, tests) published to GitHub Pages after every deploy.
-  # Generated against the warehouse so the catalog carries the real column types.
-  docs:
+  # dbt docs + metrics.json on GitHub Pages (also daily, on its own schedule).
+  site:
     needs: deploy
-    runs-on: ubuntu-latest
-    environment: prod
-
-    env:
-      DATABRICKS_HOST:  ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-
-      - name: Install dbt (same range as the job's dbt environment)
-        run: pip install "dbt-databricks>=1.10,<2.0"
-
-      - name: dbt profile for the job's SQL warehouse
-        run: |
-          WAREHOUSE_ID=$(python3 -c "import yaml; print(yaml.safe_load(open('databricks.yml'))['variables']['warehouse_id']['default'])")
-          mkdir -p ~/.dbt
-          cat > ~/.dbt/profiles.yml << EOF
-          medallion:
-            target: docs
-            outputs:
-              docs:
-                type: databricks
-                host: ${DATABRICKS_HOST#https://}
-                http_path: /sql/1.0/warehouses/${WAREHOUSE_ID}
-                token: "{{ env_var('DATABRICKS_TOKEN') }}"
-                catalog: medallion_bronze
-                schema: docs
-                threads: 4
-          EOF
-
-      - name: dbt docs generate (single static page)
-        working-directory: dbt
-        run: |
-          dbt deps --no-use-colors
-          dbt docs generate --static --no-use-colors
-          mkdir -p ../site && cp target/static_index.html ../site/index.html
-
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: site
-
-  publish-docs:
-    needs: docs
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/site.yml
+    secrets: inherit
     permissions:
+      contents: read
       pages: write
       id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
